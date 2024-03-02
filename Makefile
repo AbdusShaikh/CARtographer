@@ -1,6 +1,6 @@
 CC = g++
-CFLAGS = -Wall -Wextra -Iinc -Ilib/rplidar/inc
-LDFLAGS = -Llib/rplidar -l:libsl_lidar_sdk.a -lpigpio
+CFLAGS = -Wall -Wextra -Iinc -Ilib/rplidar/inc -g
+LDFLAGS = -Llib/rplidar -l:libsl_lidar_sdk.a -lpigpio -lopencv_core -lopencv_highgui -lopencv_imgproc
 
 SRC_DIR = src
 INC_DIR = inc
