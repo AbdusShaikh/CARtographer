@@ -15,12 +15,19 @@ class Lidar{
         ~Lidar();
         int init();
         int scan();
+        float32_t getAvgFrontProximity();
         void displayLidarData();
+
     private:
+        struct scanDot {
+            sl_u8   quality;
+            float angle;
+            float dist;
+        };
+
         string m_serialPort = "/dev/ttyUSB0";
         int m_baudRate = 115200;
         ILidarDriver * m_driver;
         IChannel* m_serialChannel;
-        size_t m_nodeCount = 8192;
-        sl_lidar_response_measurement_node_hq_t m_nodes[8192];
+        vector<scanDot> m_nodes;
 };

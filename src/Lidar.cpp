@@ -19,17 +19,18 @@ int Lidar::init(){
     m_driver = *createLidarDriver();
     if (!m_driver){
         printf("[RPLIDAR]: Insufficent memory, exit\n");
-        return 1;
+        exit(1);
     }
     m_serialChannel = *createSerialPortChannel(m_serialPort, m_baudRate);
     if (!SL_IS_OK((m_driver->connect(m_serialChannel)))){
         printf("[RPLIDAR]: Failed to connect. Exiting\n");
-        return 1;
+        exit(1);
+
     }
     sl_lidar_response_device_health_t healthinfo;
     if (!SL_IS_OK(m_driver->getHealth(healthinfo))) {
         printf("[RPLIDAR]: Bad RpLidar health. Exiting\n");
-        return 1;
+        exit(1);
     }
 
     printf("[RPIDAR]: Connection Successful\n");
@@ -44,20 +45,37 @@ int Lidar::init(){
 }
 
 int Lidar::scan(){
+    m_nodes.clear();
+    size_t nodeCount = 8192;
+    sl_lidar_response_measurement_node_hq_t newNodes[nodeCount];
 
-    if (SL_IS_OK(m_driver->grabScanDataHq(m_nodes, m_nodeCount))){
-        m_driver->ascendScanData(m_nodes, m_nodeCount);
-        // for (int i = 0; i < (int)m_nodeCount; i++){
-        //     printf("Node: %d | Flag: %d | Angle: %d | Distance: %d | Quality: %d \n",
-        //     i,
-        //     m_nodes[i].flag,
-        //     m_nodes[i].angle_z_q14,
-        //     m_nodes[i].dist_mm_q2,
-        //     m_nodes[i].quality );
-        // }
+    if (SL_IS_OK(m_driver->grabScanDataHq(newNodes, nodeCount))){
+        m_driver->ascendScanData(newNodes, nodeCount);
+        for (int i = 0; i < (int)nodeCount; i++){
+            //if (!newNodes[i].dist_mm_q2) continue;
+            scanDot dot;
+            dot.dist = newNodes[i].dist_mm_q2;
+            dot.angle = (newNodes[i].angle_z_q14 *90.0f) / 16384.0f;
+            dot.quality = newNodes[i].quality;
+            m_nodes.push_back(dot);
+        }
         return 0;
     }
     return 1;
+}
+
+float32_t Lidar::getAvgFrontProximity(){
+    float32_t totalDist = 0;
+    float32_t count = 0;
+
+    for (int i = 0; i < (int) m_nodes.size(); i++){
+        // Only count front of car
+        if (!m_nodes[i].dist || m_nodes[i].angle < 150.0f || m_nodes[i].angle > 210.0f) continue;
+        totalDist += m_nodes[i].dist;
+        count += 1;
+    }
+
+    return totalDist / count;
 }
 
 void Lidar::displayLidarData(){
@@ -66,20 +84,38 @@ void Lidar::displayLidarData(){
     float32_t c = 0;
     float32_t s = 0;
     circle(image, center, 5, Scalar(0, 255,0));
-    for (int i = 0; i < (int) m_nodeCount; i++){
-        int point_dist = m_nodes[i].dist_mm_q2 / 10;
-        if (point_dist == 0) continue;
-        printf("[RPLIDAR]: Node[%d] Distance[%d] | Angle[%f]\n", i, point_dist, (m_nodes[i].angle_z_q14 * 90.f) / 16384.0f);
-        Point det = Point(400, 400 - point_dist);
-        float32_t det_angle = (m_nodes[i].angle_z_q14 * 90.0f) / 16384.0f;
-        float32_t det_angle_rad = (det_angle * 3.14150) / 180.0f;
-        c = cos(det_angle_rad);
-        s = sin(det_angle_rad);
+    for (int i = 0; i < (int) m_nodes.size(); i++){
+        if (!m_nodes[i].dist) continue;
+        int pointDist = m_nodes[i].dist / 10;
+        Point det = Point(400, 400 - pointDist);
+        float32_t detAngleRad = (m_nodes[i].angle * M_PI) / 180.0f;
+        printf("[RPLIDAR]: Node[%d] Distance[%d] | Angle[%f]\n", i, pointDist, m_nodes[i].angle);
+        c = cos(detAngleRad);
+        s = sin(detAngleRad);
         float32_t dx = det.x - center.x;
         float32_t dy = det.y - center.y;
-        Point rotatedDet = Point((dx * c) - (dy * s) + center.x,  (dx * s) + (dy * c) + center.y); 
-        circle(image, rotatedDet, 3, Scalar(255, 0,0), 2);
+        Point rotatedDet = Point((dx * c) - (dy * s) + center.x,  (dx * s) + (dy * c) + center.y);
+        Scalar pointColour = Scalar(255, 0, 0);
+        // if (m_nodes[i].angle <= 90){
+        //     pointColour = Scalar(0, 0, 255);
+        // }
+        // else if (m_nodes[i].angle >= 270){
+        //     pointColour = Scalar(0, 255, 0);
+        // }
+        circle(image, rotatedDet, 3, pointColour, 2);
     }
+    float32_t frontDist = getAvgFrontProximity();
+    Scalar movementTextColor = Scalar(0, 255, 0);
+    string movementText = "GO";
+    if (frontDist <= 2000){
+        movementTextColor = Scalar(0,0,255);
+        movementText = "STOP";
+    }
+    else if (frontDist <= 4000) {
+        movementTextColor = Scalar(0, 255, 255);
+        movementText = "SLOW";
+    }
+    putText(image, movementText, center, FONT_HERSHEY_SIMPLEX, 4, movementTextColor, 3);
     imshow("Lidar Data", image);
     waitKey(1);
     return;
