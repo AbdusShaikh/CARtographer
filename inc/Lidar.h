@@ -13,10 +13,12 @@ class Lidar{
     public:
         Lidar();
         ~Lidar();
-        int init();
+        int init(iFace* interface);
+        int uninit();
         int scan();
-        float32_t getAvgFrontProximity();
+        float getAvgAnteriorProximity();
         void displayLidarData();
+        void main();
 
     private:
         struct scanDot {
@@ -30,4 +32,6 @@ class Lidar{
         ILidarDriver * m_driver;
         IChannel* m_serialChannel;
         vector<scanDot> m_nodes;
+        iFace* m_interface;
+
 };
