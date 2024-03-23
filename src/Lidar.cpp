@@ -73,7 +73,8 @@ float Lidar::getAvgAnteriorProximity(){
 
     for (int i = 0; i < (int) m_nodes.size(); i++){
         // Only count front of car
-        if (!m_nodes[i].dist || (m_nodes[i].angle > 45.0f && m_nodes[i].angle < 315.0f)) continue;
+        // if (!m_nodes[i].dist || (m_nodes[i].angle > 45.0f && m_nodes[i].angle < 315.0f)) continue;
+        if (m_nodes[i].angle > 45.0f && m_nodes[i].angle < 315.0f) continue;
         totalDist += m_nodes[i].dist;
         count += 1;
     }
