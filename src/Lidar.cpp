@@ -6,33 +6,31 @@ Lidar::Lidar(){
 
 Lidar::~Lidar(){}
 
-int Lidar::init(iFace* interface){
+int Lidar::init(vector<scanDot>& lidarReadingCollector ){
     m_driver = *createLidarDriver();
     if (!m_driver){
         printf("[RPLIDAR]: Insufficent memory, exit\n");
-        exit(1);
+        return EXIT_FAILURE;
     }
     m_serialChannel = *createSerialPortChannel(m_serialPort, m_baudRate);
     if (!SL_IS_OK((m_driver->connect(m_serialChannel)))){
         printf("[RPLIDAR]: Failed to connect. Exiting\n");
-        exit(1);
-
+        return EXIT_FAILURE;
     }
     sl_lidar_response_device_health_t healthinfo;
     if (!SL_IS_OK(m_driver->getHealth(healthinfo))) {
         printf("[RPLIDAR]: Bad RpLidar health. Exiting\n");
-        exit(1);
+        return EXIT_FAILURE;
     }
 
     printf("[RPLIDAR]: Connection Successful\n");
-
+    m_nodes = lidarReadingCollector;
     m_driver->setMotorSpeed();
     // start scan...
     m_driver->startScan(0,1);
-    m_interface = interface;
     printf("[RPLIDAR]: Scanning Started\n");
     // namedWindow("Lidar Data", WINDOW_AUTOSIZE);
-    return 0;
+    return EXIT_SUCCESS;
 }
 
 int Lidar::uninit(){
@@ -44,10 +42,11 @@ int Lidar::uninit(){
         delete m_driver;
         m_driver = NULL;
     }
-    return 1;
+    return EXIT_SUCCESS;
 }
 
 int Lidar::scan(){
+
     m_nodes.clear();
     size_t nodeCount = 8192;
     sl_lidar_response_measurement_node_hq_t newNodes[nodeCount];
@@ -62,24 +61,9 @@ int Lidar::scan(){
             dot.quality = newNodes[i].quality;
             m_nodes.push_back(dot);
         }
-        return 0;
+        return EXIT_SUCCESS;
     }
-    return 1;
-}
-
-float Lidar::getAvgAnteriorProximity(){
-    float totalDist = 0;
-    float count = 0;
-
-    for (int i = 0; i < (int) m_nodes.size(); i++){
-        // Only count front of car
-        // if (!m_nodes[i].dist || (m_nodes[i].angle > 45.0f && m_nodes[i].angle < 315.0f)) continue;
-        if (m_nodes[i].angle > 45.0f && m_nodes[i].angle < 315.0f) continue;
-        totalDist += m_nodes[i].dist;
-        count += 1;
-    }
-
-    return totalDist / count;
+    return EXIT_FAILURE;
 }
 
 void Lidar::displayLidarData(){
@@ -108,18 +92,18 @@ void Lidar::displayLidarData(){
         // }
         circle(image, rotatedDet, 3, pointColour, 2);
     }
-    float anteriorDist = getAvgAnteriorProximity();
-    Scalar movementTextColor = Scalar(0, 255, 0);
-    string movementText = "GO";
-    if (anteriorDist <= 2000){
-        movementTextColor = Scalar(0,0,255);
-        movementText = "STOP";
-    }
-    else if (anteriorDist <= 4000) {
-        movementTextColor = Scalar(0, 255, 255);
-        movementText = "SLOW";
-    }
-    putText(image, movementText, center, FONT_HERSHEY_SIMPLEX, 4, movementTextColor, 3);
+    // float anteriorDist = getAvgAnteriorProximity();
+    // Scalar movementTextColor = Scalar(0, 255, 0);
+    // string movementText = "GO";
+    // if (anteriorDist <= 2000){
+    //     movementTextColor = Scalar(0,0,255);
+    //     movementText = "STOP";
+    // }
+    // else if (anteriorDist <= 4000) {
+    //     movementTextColor = Scalar(0, 255, 255);
+    //     movementText = "SLOW";
+    // }
+    // putText(image, movementText, center, FONT_HERSHEY_SIMPLEX, 4, movementTextColor, 3);
     imshow("Lidar Data", image);
     waitKey(1);
     return;
@@ -129,11 +113,6 @@ void Lidar::main(){
     if (scan()){
         printf("[RPLIDAR]: Failure to scan in main loop. Exiting\n");
         return;
-    }
-    float anteriorDist = getAvgAnteriorProximity();
-    m_interface->isClear = true;
-    if (anteriorDist <= 2000){
-        m_interface->isClear = false;
     }
     return;
 }

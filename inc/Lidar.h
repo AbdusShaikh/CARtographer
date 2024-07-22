@@ -13,25 +13,16 @@ class Lidar{
     public:
         Lidar();
         ~Lidar();
-        int init(iFace* interface);
+        int init(vector<scanDot>& lidarReadingCollector);
         int uninit();
         int scan();
-        float getAvgAnteriorProximity();
         void displayLidarData();
         void main();
 
     private:
-        struct scanDot {
-            sl_u8   quality;
-            float angle;
-            float dist;
-        };
-
         string m_serialPort = "/dev/ttyUSB0";
         int m_baudRate = 115200;
         ILidarDriver * m_driver;
         IChannel* m_serialChannel;
         vector<scanDot> m_nodes;
-        iFace* m_interface;
-
 };

@@ -12,55 +12,65 @@ void Car::test(){
         exit(-1);
     }
     gpioSetMode(m_enaPin, PI_OUTPUT);
-    gpioSetMode(m_inLeftWheelPin, PI_OUTPUT);
-    gpioSetMode(m_rightWheelPin, PI_OUTPUT);
+    gpioSetMode(m_LFWheelPin, PI_OUTPUT);
+    gpioSetMode(m_RFWheelPin, PI_OUTPUT);
 
     gpioPWM(m_enaPin, m_dutyCycle);
+    gpioPWM(m_enbPin, m_dutyCycle);
     // while(!ctrlCFlag){
     //     gpioWrite(m_inLeftWheelPin, 1);
     //     gpioWrite(m_rightWheelPin, 1);
     // }
-    gpioWrite(m_inLeftWheelPin, 0);
-    gpioWrite(m_rightWheelPin, 0);
+    gpioWrite(m_LFWheelPin, 0);
+    gpioWrite(m_RFWheelPin, 0);
     gpioTerminate();
 }
 
-int Car::init(iFace* interface){
+int Car::init(WheelEncoderDataContainer &encoderReadings){
     if (gpioInitialise() < 0){
         printf("Failed to init pigpio\n");
         exit(-1);
     }
     gpioSetMode(m_enaPin, PI_OUTPUT);
-    gpioSetMode(m_inLeftWheelPin, PI_OUTPUT);
-    gpioSetMode(m_rightWheelPin, PI_OUTPUT);
+    gpioSetMode(m_enbPin, PI_OUTPUT);
+    gpioSetMode(m_LFWheelPin, PI_OUTPUT);
+    gpioSetMode(m_LBWheelPin, PI_OUTPUT);
+    gpioSetMode(m_RFWheelPin, PI_OUTPUT);
+    gpioSetMode(m_RBWheelPin, PI_OUTPUT);
     gpioPWM(m_enaPin, m_dutyCycle);
-    gpioWrite(m_inLeftWheelPin, 0);
-    gpioWrite(m_rightWheelPin, 0);
-    m_interface = interface;
-    return 0;
+    gpioPWM(m_enbPin, m_dutyCycle);
+    gpioWrite(m_LFWheelPin, 0);
+    gpioWrite(m_LBWheelPin, 0);
+    gpioWrite(m_RFWheelPin, 0);
+    gpioWrite(m_RBWheelPin, 0);
+    m_encoderReadings = encoderReadings;
+    return EXIT_SUCCESS;
 }
 
 int Car::uninit(){
-    gpioWrite(m_inLeftWheelPin, 0);
-    gpioWrite(m_rightWheelPin, 0);
+    gpioWrite(m_LFWheelPin, 0);
+    gpioWrite(m_LBWheelPin, 0);
+    gpioWrite(m_RFWheelPin, 0);
+    gpioWrite(m_RBWheelPin, 0);
     gpioTerminate();
-    return 1;
+    return EXIT_SUCCESS;
 }
 
 int Car::drive(int speed, float ang){
-    gpioPWM(m_enaPin, speed);
     ang = 0;
-    if (!m_interface->isClear){
-        gpioWrite(m_inLeftWheelPin, 0);
-        gpioWrite(m_rightWheelPin, 1);
-    }
-    else {
-        gpioWrite(m_inLeftWheelPin, 1);
-        gpioWrite(m_rightWheelPin, 1);
-    }
-    return 0;
+    gpioWrite(m_LFWheelPin, 1);
+    gpioWrite(m_RFWheelPin, 1);
+    // if (!m_interface->isClear){
+    //     gpioWrite(m_LFWheelPin, 0);
+    //     gpioWrite(m_RFWheelPin, 1);
+    // }
+    // else {
+    //     gpioWrite(m_LFWheelPin, 1);
+    //     gpioWrite(m_RFWheelPin, 1);
+    // }
+    return EXIT_SUCCESS;
 }
 
 void Car::main(){
-    drive(255, 0.0f);
+    drive(125, 0.0f);
 }
