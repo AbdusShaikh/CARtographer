@@ -30,6 +30,8 @@ ENB = 26   # Enable pin for Motor B
 IN3 = 19   # Control pin 1 for Motor B (Forward)
 IN4 = 13    # Control pin 2 for Motor B
 
+sleep_time = 1
+
 
 def test_drive():
     # GPIO setup
@@ -75,12 +77,12 @@ def test_drive():
         print("Motors forward")
         motorA_forward()
         motorB_forward()
-        time.sleep(5)
+        time.sleep(sleep_time)
 
         print("Motors backward")
         motorA_backward()
         motorB_backward()
-        time.sleep(5)
+        time.sleep(sleep_time)
 
         print("Stop motors")
         motorA_stop()
