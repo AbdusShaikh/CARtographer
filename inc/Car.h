@@ -1,6 +1,22 @@
 #include <pigpio.h>
+#include <thread>
 #include "common.h"
 
+struct carPinConfig{
+    int enA;
+    int enB;
+
+    int lFWheel;
+    int lBWheel;
+    int rFWheel;
+    int rBWheel;
+
+    int leftEncoderA;
+    int leftEncoderB;
+    int rightEncoderA;
+    int rightEncoderB;
+
+};
 
 class Car{
     public:
@@ -13,12 +29,30 @@ class Car{
         void test();
         void main();
     private:
-        int m_enaPin = 21; // Right
-        int m_enbPin = 26; // Left
-        int m_LFWheelPin= 19;
-        int m_LBWheelPin = 13;
-        int m_RFWheelPin = 20; 
-        int m_RBWheelPin = 16; 
+        // Callback function to be executed upon recieving a rising edge on motor encoder A from either left or right side.
+        static void readEncoders(int gpio, int level, uint32_t tick, void* userData){
+            if (level != 1){ // If not a change to a rising edge
+                return;
+            }
+            (void) tick; // REMOVE
+            Car* instance = (Car*) userData;
+            // Default to left side
+            int pinA = instance->m_pinConfig.leftEncoderA;
+            int pinB = instance->m_pinConfig.leftEncoderB;
+            int* pulses = &instance->m_encoderReadings.leftWheel;
+            // Switch to right side if that is what called this function.
+            if (gpio == instance->m_pinConfig.rightEncoderA){
+                pinA = instance->m_pinConfig.rightEncoderA;
+                pinB = instance->m_pinConfig.rightEncoderB;
+                pulses = &instance->m_encoderReadings.rightWheel;
+            }
+            if (gpioRead(pinA) != gpioRead(pinB)){
+                (*pulses)++; // B edge has not risen yet. B comes after A in clockwise motion
+            } else {
+                (*pulses) --; // B edge has already risen. B comes before A in counter clockwise motion
+            }
+        }
+        carPinConfig m_pinConfig;
         int m_dutyCycle = 255;
 
         WheelEncoderDataContainer m_encoderReadings;

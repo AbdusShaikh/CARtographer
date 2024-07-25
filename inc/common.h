@@ -18,8 +18,10 @@ struct scanDot {
 
 // Container for wheel encoder readings
 struct WheelEncoderDataContainer {
-    int leftWheel;
-    int rightWheel;
+    int leftWheel = 0;
+    int leftWheelPrev = 0;
+    int rightWheel = 0;
+    int rightWheelPrev = 0;
 };
 
 // Sensor readings object to be filled by lidar and wheel encoders, and consumed by mastermind

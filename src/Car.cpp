@@ -11,18 +11,18 @@ void Car::test(){
         printf("Failed to init pigpio\n");
         exit(-1);
     }
-    gpioSetMode(m_enaPin, PI_OUTPUT);
-    gpioSetMode(m_LFWheelPin, PI_OUTPUT);
-    gpioSetMode(m_RFWheelPin, PI_OUTPUT);
+    gpioSetMode(m_pinConfig.enA, PI_OUTPUT);
+    gpioSetMode(m_pinConfig.lFWheel, PI_OUTPUT);
+    gpioSetMode(m_pinConfig.rFWheel, PI_OUTPUT);
 
-    gpioPWM(m_enaPin, m_dutyCycle);
-    gpioPWM(m_enbPin, m_dutyCycle);
+    gpioPWM(m_pinConfig.enA, m_dutyCycle);
+    gpioPWM(m_pinConfig.enB, m_dutyCycle);
     // while(!ctrlCFlag){
     //     gpioWrite(m_inLeftWheelPin, 1);
     //     gpioWrite(m_rightWheelPin, 1);
     // }
-    gpioWrite(m_LFWheelPin, 0);
-    gpioWrite(m_RFWheelPin, 0);
+    gpioWrite(m_pinConfig.lFWheel, 0);
+    gpioWrite(m_pinConfig.rFWheel, 0);
     gpioTerminate();
 }
 
@@ -31,35 +31,49 @@ int Car::init(WheelEncoderDataContainer &encoderReadings){
         printf("Failed to init pigpio\n");
         exit(-1);
     }
-    gpioSetMode(m_enaPin, PI_OUTPUT);
-    gpioSetMode(m_enbPin, PI_OUTPUT);
-    gpioSetMode(m_LFWheelPin, PI_OUTPUT);
-    gpioSetMode(m_LBWheelPin, PI_OUTPUT);
-    gpioSetMode(m_RFWheelPin, PI_OUTPUT);
-    gpioSetMode(m_RBWheelPin, PI_OUTPUT);
-    gpioPWM(m_enaPin, m_dutyCycle);
-    gpioPWM(m_enbPin, m_dutyCycle);
-    gpioWrite(m_LFWheelPin, 0);
-    gpioWrite(m_LBWheelPin, 0);
-    gpioWrite(m_RFWheelPin, 0);
-    gpioWrite(m_RBWheelPin, 0);
+    // Set pin values
+    m_pinConfig.enA = 21;
+    m_pinConfig.enB = 26;
+    m_pinConfig.lFWheel = 19;
+    m_pinConfig.lBWheel = 13;
+    m_pinConfig.rFWheel = 20;
+    m_pinConfig.rBWheel = 16;
+
+    // Initialize pins
+    gpioSetMode(m_pinConfig.enA, PI_OUTPUT);
+    gpioSetMode(m_pinConfig.enB, PI_OUTPUT);
+    gpioSetMode(m_pinConfig.lFWheel, PI_OUTPUT);
+    gpioSetMode(m_pinConfig.lBWheel, PI_OUTPUT);
+    gpioSetMode(m_pinConfig.rFWheel, PI_OUTPUT);
+    gpioSetMode(m_pinConfig.rBWheel, PI_OUTPUT);
+    gpioPWM(m_pinConfig.enA, m_dutyCycle);
+    gpioPWM(m_pinConfig.enB, m_dutyCycle);
+    gpioWrite(m_pinConfig.lFWheel, 0);
+    gpioWrite(m_pinConfig.lBWheel, 0);
+    gpioWrite(m_pinConfig.rFWheel, 0);
+    gpioWrite(m_pinConfig.rBWheel, 0);
+
+    // Read encoders
+    gpioSetAlertFuncEx(m_pinConfig.leftEncoderA, readEncoders, this); 
+    gpioSetAlertFuncEx(m_pinConfig.rightEncoderA, readEncoders, this);
     m_encoderReadings = encoderReadings;
     return EXIT_SUCCESS;
 }
 
 int Car::uninit(){
-    gpioWrite(m_LFWheelPin, 0);
-    gpioWrite(m_LBWheelPin, 0);
-    gpioWrite(m_RFWheelPin, 0);
-    gpioWrite(m_RBWheelPin, 0);
+    gpioWrite(m_pinConfig.lFWheel, 0);
+    gpioWrite(m_pinConfig.lBWheel, 0);
+    gpioWrite(m_pinConfig.rFWheel, 0);
+    gpioWrite(m_pinConfig.rBWheel, 0);
     gpioTerminate();
     return EXIT_SUCCESS;
 }
 
 int Car::drive(int speed, float ang){
-    ang = 0;
-    gpioWrite(m_LFWheelPin, 1);
-    gpioWrite(m_RFWheelPin, 1);
+    (void) ang; // REMOVE
+    (void) speed; // REMOVE
+    gpioWrite(m_pinConfig.lFWheel, 1);
+    gpioWrite(m_pinConfig.rFWheel, 1);
     // if (!m_interface->isClear){
     //     gpioWrite(m_LFWheelPin, 0);
     //     gpioWrite(m_RFWheelPin, 1);
@@ -70,6 +84,15 @@ int Car::drive(int speed, float ang){
     // }
     return EXIT_SUCCESS;
 }
+
+// void Car::readEncoders(){
+//     if (gpioRead(m_pinConfig.leftEncoderA) != gpioRead(m_pinConfig.leftEncoderB)){
+//         m_encoderReadings.leftWheel += 1;
+//     }
+//     else {
+//         m_encoderReadings.leftWheel -=1 ;
+//     }
+// }
 
 void Car::main(){
     drive(125, 0.0f);

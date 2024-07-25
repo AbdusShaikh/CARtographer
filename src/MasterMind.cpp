@@ -1,11 +1,6 @@
 #include "MasterMind.h"
 volatile int ctrlCFlag = 0;
 
-void sigintHandler(int sig_num){
-    ctrlCFlag = 1;
-    printf("ctrl-c pressed\n");
-}
-
 MasterMind::MasterMind(){};
 MasterMind::~MasterMind(){};
 
@@ -47,7 +42,6 @@ int MasterMind::run(){
 }
 
 int main(){
-    signal(SIGINT, sigintHandler);
     MasterMind masterMind;
     masterMind.init();
     masterMind.run();
