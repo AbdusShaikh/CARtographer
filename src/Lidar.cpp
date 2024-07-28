@@ -1,8 +1,9 @@
 #include "Lidar.h"
 
-Lidar::Lidar(){
+// TODO:
+//  - Default scaDot angle to radians
 
-};
+Lidar::Lidar(){};
 
 Lidar::~Lidar(){}
 

@@ -1,5 +1,4 @@
 #include "MasterMind.h"
-volatile int ctrlCFlag = 0;
 
 MasterMind::MasterMind(){};
 MasterMind::~MasterMind(){};
@@ -36,8 +35,10 @@ int MasterMind::uninit(){
 }
 
 int MasterMind::run(){
-    m_lidar.main();
-    m_car.main();
+    while (true){
+        m_lidar.main();
+        m_car.main();
+    }
     return EXIT_SUCCESS;
 }
 

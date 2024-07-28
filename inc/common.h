@@ -6,6 +6,7 @@
 #include <signal.h>
 #include <math.h>
 #include <vector>
+#include <assert.h>
 
 using namespace std;
 

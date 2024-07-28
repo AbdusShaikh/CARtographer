@@ -2,23 +2,21 @@
 
 using namespace std;
 
-struct PolarLine{
-    float r;
-    float theta;
-};
-
-struct CartesianLine {
-    float A;
-    float B;
-    float C;
+struct CartesianCoord {
+    float x;
+    float y;
 };
 
 class LineExtractor{
     public:
-        void splitAndMerge(vector<scanDot> lidarPoints, float distThreshold);
+        vector<vector<scanDot>>  splitAndMerge(vector<scanDot> lidarPoints, float distThreshold, float angThreshold);
     private:
-        vector<scanDot> split(vector<scanDot> lidarPoints, float distThreshold);
-        vector<scanDot> merge(vector<scanDot> segments, float distThreshold);
-        void fitLine(scanDot point1, scanDot point2, CartesianLine* resultLine);
-        float perpDist(scanDot point, CartesianLine line);
+        CartesianCoord polarToCartesian(scanDot polarPoint);
+        CartesianCoord normalizeVector(CartesianCoord vector);
+        CartesianCoord cartesianPointsToVector(CartesianCoord vector1, CartesianCoord vector2);
+        float dotProduct(CartesianCoord vector1, CartesianCoord vector2);
+
+        vector<vector<scanDot>> split(vector<scanDot> lidarPoints, float distThreshold);
+        vector<vector<scanDot>> merge(vector<vector<scanDot>> splitSegments, float angThreshold);
+        float pointToLineDist(scanDot linePoint1, scanDot linePoint2, scanDot testPoint);
 };
