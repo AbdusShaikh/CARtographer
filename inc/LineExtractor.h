@@ -16,7 +16,7 @@ struct CartesianCoord {
 
 class LineExtractor{
     public:
-        vector<vector<scanDot>>  splitAndMerge(vector<scanDot> lidarPoints, float distThreshold, float angThreshold);
+        vector<vector<scanDot>>  splitAndMerge(vector<scanDot> lidarPoints, float distThreshold, float angThreshold, int minLineLength);
     private:
         // Utitlity functions
         CartesianCoord polarToCartesian(scanDot polarPoint);
@@ -29,4 +29,5 @@ class LineExtractor{
         // Algorithm functions
         vector<vector<scanDot>> split(vector<scanDot> lidarPoints, float distThreshold);
         vector<vector<scanDot>> merge(vector<vector<scanDot>> splitSegments, float angThreshold);
+        vector<vector<scanDot>> filterSegments(vector<vector<scanDot>> splitSegments, int minLineLength);
 };

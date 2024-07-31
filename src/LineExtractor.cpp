@@ -4,7 +4,7 @@
 //  - Filter bad lines
 //      - Too short
 //      - Crooked
-//  - Determine optimal aistThreshold and angThreshold
+//  - Determine optimal distThreshold and angThreshold
 
 
 CartesianCoord LineExtractor::polarToCartesian(scanDot polarPoint){
@@ -70,8 +70,9 @@ void LineExtractor::displayExtractedLines(vector<vector<scanDot>> mergedSegments
         scanDot lineEnd = mergedSegments[i].back();
         if (!lineStart.dist || !lineEnd.dist) continue;
 
-        Point lineStartCartesian = Point(center.x + ((lineStart.dist / 10) * cos(lineStart.angle)), center.y - ((lineStart.dist / 10) * sin(lineStart.angle)));
-        Point lineEndCartesian = Point(center.x + ((lineEnd.dist / 10) * cos(lineEnd.angle)), center.y - ((lineEnd.dist / 10) * sin(lineEnd.angle)));
+        int scaleFactor = 20;
+        Point lineStartCartesian = Point(center.x + ((lineStart.dist / scaleFactor) * cos(lineStart.angle)), center.y - ((lineStart.dist / scaleFactor) * sin(lineStart.angle)));
+        Point lineEndCartesian = Point(center.x + ((lineEnd.dist / scaleFactor) * cos(lineEnd.angle)), center.y - ((lineEnd.dist / scaleFactor) * sin(lineEnd.angle)));
         cv::line(image, lineStartCartesian, lineEndCartesian, Scalar(0,255,0), 2);
     }
     cv::imshow("Extracted Lidar lines", image);
@@ -79,14 +80,12 @@ void LineExtractor::displayExtractedLines(vector<vector<scanDot>> mergedSegments
     return;
 }
 
-
-
 /*
 Take 'rawPoints' and seperate it into a vector of vectors where each inner vector is a set of points that can have a 
 line fitted through them satisfying some miminum threshold
 */
 vector<vector<scanDot>> LineExtractor::split(vector<scanDot> rawPoints, float distThreshold){
-    if (rawPoints.size() <= 2){
+    if (rawPoints.size() < 2){
         return {rawPoints};
     }
 
@@ -141,27 +140,46 @@ vector<vector<scanDot>> LineExtractor::merge(vector<vector<scanDot>> splitSegmen
 
         float dotProd = dotProduct(currSegmentVectorNormalized, nextSegmentVectorNormalized);
         if (fabs(1.0f - dotProd) < angThreshold){
-            currSegment.insert(currSegment.end(), nextSegment.begin(), nextSegment.end()); // Combine the segments into one vector
+            // Only endpoints
+            // currSegment = {currSegment.front(), nextSegment.back()};
+            // Complete line
+            currSegment.insert(currSegment.end(), nextSegment.begin(), nextSegment.end());
         } 
         else {
             mergedSegments.push_back(currSegment);
             currSegment = nextSegment;
         }
     }
-    if (mergedSegments.empty()){
-        mergedSegments.push_back(currSegment);
-    }
+    mergedSegments.push_back(currSegment);
 
     return mergedSegments;
 }
 
-vector<vector<scanDot>>  LineExtractor::splitAndMerge(vector<scanDot> rawPoints, float distThreshold, float angThreshold){
+/*
+Filtering function to remove segments based on the following rules
+    - Minimum line length
+    - 
+*/
+vector<vector<scanDot>> LineExtractor::filterSegments(vector<vector<scanDot>> mergedSegments, int minLineLength){
+    vector<vector<scanDot>> filteredSegments;
+    for (int i = 0; i < (int) mergedSegments.size(); i ++){
+        if ((int) mergedSegments[i].size() < minLineLength){
+            continue;
+        }
+        filteredSegments.push_back(mergedSegments[i]);
+    }
+    return filteredSegments;
+}
+
+vector<vector<scanDot>>  LineExtractor::splitAndMerge(vector<scanDot> rawPoints, float distThreshold, float angThreshold, int minLineLength){
     vector<vector<scanDot>> segments = split(rawPoints, distThreshold);
     vector<vector<scanDot>> mergedSegments = merge(segments, angThreshold);
+    vector<vector<scanDot>> filteredSegments = filterSegments(mergedSegments, minLineLength);
+
 
 #if DISPLAY_EXTRACTED_LINES
-    displayExtractedLines(mergedSegments);
+    displayExtractedLines(filteredSegments);
 #endif
 
-    return mergedSegments;
+    return filteredSegments;
 }

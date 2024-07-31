@@ -68,45 +68,15 @@ int Lidar::scan(){
 void Lidar::displayLidarData(){
     Mat image = Mat::zeros(800, 800, CV_8UC3);
     Point center = Point(400, 400);
-    float c = 0;
-    float s = 0;
     circle(image, center, 5, Scalar(0, 255,0));
     for (int i = 0; i < (int) (*m_nodes).size(); i++){
         scanDot currNode = (*m_nodes)[i];
         if (!currNode.dist) continue;
-        int pointDist = currNode.dist / 10;
-        Point det = Point(400, 400 - pointDist);
-        float angle = currNode.angle;
-        printf("[RPLIDAR]: Node[%d] Distance[%d] | Angle[%f]\n", i, pointDist, angle);
-        c = cos(angle);
-        s = sin(angle);
-        float dx = det.x - center.x;
-        float dy = det.y - center.y;
-        Point rotatedDet = Point((dx * c) - (dy * s) + center.x,  (dx * s) + (dy * c) + center.y);
-
-        rotatedDet = Point(center.x + (currNode.dist / 10) * c, center.y - (currNode.dist / 10) * s);
-
+        int scaleFactor = 20;
+        Point cartesianPoint = Point(center.x + ((currNode.dist / scaleFactor) * cos(currNode.angle)), center.y - ((currNode.dist / scaleFactor) * sin(currNode.angle)));
         Scalar pointColour = Scalar(255, 0, 0);
-        // if (m_nodes[i].angle <= 90){
-        //     pointColour = Scalar(0, 0, 255);
-        // }
-        // else if (m_nodes[i].angle >= 270){
-        //     pointColour = Scalar(0, 255, 0);
-        // }
-        circle(image, rotatedDet, 3, pointColour, 2);
+        circle(image, cartesianPoint, 3, pointColour, 2);
     }
-    // float anteriorDist = getAvgAnteriorProximity();
-    // Scalar movementTextColor = Scalar(0, 255, 0);
-    // string movementText = "GO";
-    // if (anteriorDist <= 2000){
-    //     movementTextColor = Scalar(0,0,255);
-    //     movementText = "STOP";
-    // }
-    // else if (anteriorDist <= 4000) {
-    //     movementTextColor = Scalar(0, 255, 255);
-    //     movementText = "SLOW";
-    // }
-    // putText(image, movementText, center, FONT_HERSHEY_SIMPLEX, 4, movementTextColor, 3);
     imshow("Lidar Data", image);
     waitKey(1);
     return;
@@ -117,6 +87,8 @@ void Lidar::main(){
         printf("[RPLIDAR]: Failure to scan in main loop. Exiting\n");
         return;
     }
+#if DISPLAY_LIDAR_READINGS
     displayLidarData();
+#endif
     return;
 }

@@ -1,9 +1,12 @@
 #include "common.h"
 #include "sl_lidar_driver.h"
 #include "sl_lidar.h"
-#include <opencv2/opencv.hpp>
-#include <opencv2/highgui.hpp>
-#include <opencv2/imgproc.hpp>
+#define DISPLAY_LIDAR_READINGS 1
+#if DISPLAY_LIDAR_READINGS
+    #include <opencv2/opencv.hpp>
+    #include <opencv2/highgui.hpp>
+    #include <opencv2/imgproc.hpp>
+#endif
 
 using  namespace std;
 using  namespace sl;

@@ -48,8 +48,9 @@ int MasterMind::run(){
 #endif
     assert(m_observations.lidarReadings.size() > 0);
     float distThreshold_mm = 100.0f;
-    float angleThreshold = 0.1f;
-    vector<vector<scanDot>> extractedLines = m_LineExtractor.splitAndMerge(m_observations.lidarReadings, distThreshold_mm, angleThreshold);
+    float angleThreshold = 0.05f;
+    float minLineLength = 30;
+    vector<vector<scanDot>> extractedLines = m_LineExtractor.splitAndMerge(m_observations.lidarReadings, distThreshold_mm, angleThreshold, minLineLength);
     
 
 #if !DISABLE_CAR
