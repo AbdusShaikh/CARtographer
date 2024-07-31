@@ -1,6 +1,10 @@
 #include "LineExtractor.h"
 // TODO:
-//  - Ensure scanDot.angle is coming in as Radians
+//  - Solve Lidar point / xtracted line orientation problems
+//  - Filter bad lines
+//      - Too short
+//      - Crooked
+//  - Determine optimal aistThreshold and angThreshold
 
 
 CartesianCoord LineExtractor::polarToCartesian(scanDot polarPoint){
@@ -8,6 +12,14 @@ CartesianCoord LineExtractor::polarToCartesian(scanDot polarPoint){
     cartesianPoint.x = polarPoint.dist * cos(polarPoint.angle);
     cartesianPoint.y = polarPoint.dist * sin(polarPoint.angle);
     return cartesianPoint;
+}
+
+CartesianCoord LineExtractor::normalizeVector(CartesianCoord vector){
+    float magnitude = sqrt((vector.x * vector.x) + (vector.y + vector.y));
+    CartesianCoord normalizedVector;
+    normalizedVector.x = vector.x / magnitude;
+    normalizedVector.y = vector.y / magnitude;
+    return normalizedVector;
 }
 
 CartesianCoord LineExtractor::cartesianPointsToVector(CartesianCoord vector1, CartesianCoord vector2){
@@ -42,6 +54,33 @@ float LineExtractor::pointToLineDist(scanDot linePoint1, scanDot linePoint2, sca
     return numerator / denominator;
 }
 
+
+/*
+Visualization function to display the lines extracted by the algorithm
+*/
+void LineExtractor::displayExtractedLines(vector<vector<scanDot>> mergedSegments){
+    int screenWidth = 800;
+    int screenHeight = 800;
+
+    Mat image = Mat::zeros(screenHeight, screenWidth, CV_8UC3);
+    Point center = Point(screenHeight / 2, screenWidth / 2);
+    circle(image, center, 5, Scalar(0, 255,0));
+    for (int i = 0; i < (int) mergedSegments.size(); i++){
+        scanDot lineStart = mergedSegments[i].front();
+        scanDot lineEnd = mergedSegments[i].back();
+        if (!lineStart.dist || !lineEnd.dist) continue;
+
+        Point lineStartCartesian = Point(center.x + ((lineStart.dist / 10) * cos(lineStart.angle)), center.y - ((lineStart.dist / 10) * sin(lineStart.angle)));
+        Point lineEndCartesian = Point(center.x + ((lineEnd.dist / 10) * cos(lineEnd.angle)), center.y - ((lineEnd.dist / 10) * sin(lineEnd.angle)));
+        cv::line(image, lineStartCartesian, lineEndCartesian, Scalar(0,255,0), 2);
+    }
+    cv::imshow("Extracted Lidar lines", image);
+    cv::waitKey(1);
+    return;
+}
+
+
+
 /*
 Take 'rawPoints' and seperate it into a vector of vectors where each inner vector is a set of points that can have a 
 line fitted through them satisfying some miminum threshold
@@ -56,7 +95,7 @@ vector<vector<scanDot>> LineExtractor::split(vector<scanDot> rawPoints, float di
 
     scanDot lineStartPoint = rawPoints.front();
     scanDot lineEndPoint = rawPoints.back();
-    for (int i = 1; i < rawPoints.size() - 1; i ++){
+    for (int i = 1; i < (int) rawPoints.size() - 1; i ++){
         float currPerpDist = pointToLineDist(lineStartPoint, lineEndPoint, rawPoints[i]);
         if (currPerpDist > maxDist){
             maxDist = currPerpDist;
@@ -89,7 +128,7 @@ vector<vector<scanDot>> LineExtractor::merge(vector<vector<scanDot>> splitSegmen
     vector<vector<scanDot>> mergedSegments;
     vector<scanDot> currSegment = splitSegments.front();
 
-    for (int i = 1; i < splitSegments.size(); i ++){
+    for (int i = 1; i < (int) splitSegments.size(); i ++){
         vector<scanDot> nextSegment = splitSegments[i];
 
         CartesianCoord currSegmentStart = polarToCartesian(currSegment.front());
@@ -119,6 +158,10 @@ vector<vector<scanDot>> LineExtractor::merge(vector<vector<scanDot>> splitSegmen
 vector<vector<scanDot>>  LineExtractor::splitAndMerge(vector<scanDot> rawPoints, float distThreshold, float angThreshold){
     vector<vector<scanDot>> segments = split(rawPoints, distThreshold);
     vector<vector<scanDot>> mergedSegments = merge(segments, angThreshold);
+
+#if DISPLAY_EXTRACTED_LINES
+    displayExtractedLines(mergedSegments);
+#endif
 
     return mergedSegments;
 }

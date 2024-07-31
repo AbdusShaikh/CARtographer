@@ -1,13 +1,10 @@
 #include "Lidar.h"
 
-// TODO:
-//  - Default scaDot angle to radians
-
 Lidar::Lidar(){};
 
 Lidar::~Lidar(){}
 
-int Lidar::init(vector<scanDot>& lidarReadingCollector ){
+int Lidar::init(vector<scanDot>* lidarReadingCollector ){
     m_driver = *createLidarDriver();
     if (!m_driver){
         printf("[RPLIDAR]: Insufficent memory, exit\n");
@@ -48,7 +45,7 @@ int Lidar::uninit(){
 
 int Lidar::scan(){
 
-    m_nodes.clear();
+    (*m_nodes).clear();
     size_t nodeCount = 8192;
     sl_lidar_response_measurement_node_hq_t newNodes[nodeCount];
 
@@ -58,9 +55,10 @@ int Lidar::scan(){
             //if (!newNodes[i].dist_mm_q2) continue;
             scanDot dot;
             dot.dist = newNodes[i].dist_mm_q2;
-            dot.angle = (newNodes[i].angle_z_q14 *90.0f) / 16384.0f;
+            float angle_deg = (newNodes[i].angle_z_q14 *90.0f) / 16384.0f;
+            dot.angle = (angle_deg * M_PI) / 180.0f;
             dot.quality = newNodes[i].quality;
-            m_nodes.push_back(dot);
+            (*m_nodes).push_back(dot);
         }
         return EXIT_SUCCESS;
     }
@@ -73,17 +71,21 @@ void Lidar::displayLidarData(){
     float c = 0;
     float s = 0;
     circle(image, center, 5, Scalar(0, 255,0));
-    for (int i = 0; i < (int) m_nodes.size(); i++){
-        if (!m_nodes[i].dist) continue;
-        int pointDist = m_nodes[i].dist / 10;
+    for (int i = 0; i < (int) (*m_nodes).size(); i++){
+        scanDot currNode = (*m_nodes)[i];
+        if (!currNode.dist) continue;
+        int pointDist = currNode.dist / 10;
         Point det = Point(400, 400 - pointDist);
-        float detAngleRad = (m_nodes[i].angle * M_PI) / 180.0f;
-        printf("[RPLIDAR]: Node[%d] Distance[%d] | Angle[%f]\n", i, pointDist, m_nodes[i].angle);
-        c = cos(detAngleRad);
-        s = sin(detAngleRad);
+        float angle = currNode.angle;
+        printf("[RPLIDAR]: Node[%d] Distance[%d] | Angle[%f]\n", i, pointDist, angle);
+        c = cos(angle);
+        s = sin(angle);
         float dx = det.x - center.x;
         float dy = det.y - center.y;
         Point rotatedDet = Point((dx * c) - (dy * s) + center.x,  (dx * s) + (dy * c) + center.y);
+
+        rotatedDet = Point(center.x + (currNode.dist / 10) * c, center.y - (currNode.dist / 10) * s);
+
         Scalar pointColour = Scalar(255, 0, 0);
         // if (m_nodes[i].angle <= 90){
         //     pointColour = Scalar(0, 0, 255);
@@ -111,9 +113,10 @@ void Lidar::displayLidarData(){
 }
 
 void Lidar::main(){
-    if (scan()){
+    if (scan() == EXIT_FAILURE){
         printf("[RPLIDAR]: Failure to scan in main loop. Exiting\n");
         return;
     }
+    displayLidarData();
     return;
 }

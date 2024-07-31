@@ -13,7 +13,7 @@ class Lidar{
     public:
         Lidar();
         ~Lidar();
-        int init(vector<scanDot>& lidarReadingCollector);
+        int init(vector<scanDot>* lidarReadingCollector);
         int uninit();
         int scan();
         void displayLidarData();
@@ -24,5 +24,5 @@ class Lidar{
         int m_baudRate = 115200;
         ILidarDriver * m_driver;
         IChannel* m_serialChannel;
-        vector<scanDot> m_nodes;
+        vector<scanDot> *m_nodes;
 };
