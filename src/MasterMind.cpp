@@ -6,7 +6,7 @@ MasterMind::~MasterMind(){};
 int MasterMind::init()
 {
 #if !DISABLE_LIDAR
-    if (m_lidar.init(&m_observations.lidarReadings) == EXIT_FAILURE) {
+    if (m_lidar.init(&m_observations.lidarFeatureLines) == EXIT_FAILURE) {
         printf("[MasterMind]: Failed to initialize Lidar sensor. Exiting program\n");
         // exit(1);
         return EXIT_FAILURE;
@@ -46,11 +46,6 @@ int MasterMind::run(){
 #if !DISABLE_LIDAR
         m_lidar.main();
     // TODO: Organize
-    assert(m_observations.lidarReadings.size() > 0);
-    float distThreshold_mm = 100.0f;
-    float angleThreshold = 0.05f;
-    float minLineLength = 30;
-    vector<vector<scanDot>> extractedLines = m_LineExtractor.splitAndMerge(m_observations.lidarReadings, distThreshold_mm, angleThreshold, minLineLength);
 #endif
     
 

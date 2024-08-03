@@ -4,7 +4,7 @@ Lidar::Lidar(){};
 
 Lidar::~Lidar(){}
 
-int Lidar::init(vector<scanDot>* lidarReadingCollector ){
+int Lidar::init(vector<vector<scanDot>> *lidarFeatureDeposit ){
     m_driver = *createLidarDriver();
     if (!m_driver){
         printf("[RPLIDAR]: Insufficent memory, exit\n");
@@ -22,7 +22,7 @@ int Lidar::init(vector<scanDot>* lidarReadingCollector ){
     }
 
     printf("[RPLIDAR]: Connection Successful\n");
-    m_nodes = lidarReadingCollector;
+    m_lineFeatures = lidarFeatureDeposit;
     m_driver->setMotorSpeed();
     // start scan...
     m_driver->startScan(0,1);
@@ -45,7 +45,7 @@ int Lidar::uninit(){
 
 int Lidar::scan(){
 
-    (*m_nodes).clear();
+    m_nodes.clear();
     size_t nodeCount = 8192;
     sl_lidar_response_measurement_node_hq_t newNodes[nodeCount];
 
@@ -58,7 +58,7 @@ int Lidar::scan(){
             float angle_deg = (newNodes[i].angle_z_q14 *90.0f) / 16384.0f;
             dot.angle = (angle_deg * M_PI) / 180.0f;
             dot.quality = newNodes[i].quality;
-            (*m_nodes).push_back(dot);
+            m_nodes.push_back(dot);
         }
         return EXIT_SUCCESS;
     }
@@ -69,8 +69,8 @@ void Lidar::displayLidarData(){
     Mat image = Mat::zeros(800, 800, CV_8UC3);
     Point center = Point(400, 400);
     circle(image, center, 5, Scalar(0, 255,0));
-    for (int i = 0; i < (int) (*m_nodes).size(); i++){
-        scanDot currNode = (*m_nodes)[i];
+    for (int i = 0; i < (int) m_nodes.size(); i++){
+        scanDot currNode = m_nodes[i];
         if (!currNode.dist) continue;
         int scaleFactor = 20;
         Point cartesianPoint = Point(center.x + ((currNode.dist / scaleFactor) * cos(currNode.angle)), center.y - ((currNode.dist / scaleFactor) * sin(currNode.angle)));
@@ -87,8 +87,14 @@ void Lidar::main(){
         printf("[RPLIDAR]: Failure to scan in main loop. Exiting\n");
         return;
     }
+    assert(m_nodes.size() > 0);
 #if DISPLAY_LIDAR_READINGS
     displayLidarData();
 #endif
+    float distThreshold_mm = 100.0f;
+    float angleThreshold = 0.05f;
+    float minLineLength = 30;
+    vector<vector<scanDot>> extractedLines = m_LineExtractor.splitAndMerge(m_nodes, distThreshold_mm, angleThreshold, minLineLength);
+    *m_lineFeatures = extractedLines;
     return;
 }
