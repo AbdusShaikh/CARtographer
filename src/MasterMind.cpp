@@ -14,7 +14,7 @@ int MasterMind::init()
 #endif
 
 #if !DISABLE_CAR
-    if (m_car.init(m_observations.wheelEncoderReadings) == EXIT_FAILURE) {
+    if (m_car.init(&m_observations.odometry) == EXIT_FAILURE) {
         printf("MasterMind]: Failed to initialize Car. Exiting program\n");
         // exit(1);
         return EXIT_FAILURE;
@@ -33,7 +33,7 @@ int MasterMind::uninit(){
 #endif
 #if !DISABLE_CAR
     if (m_car.uninit() == EXIT_FAILURE){
-        printf("[MasterMind]: Failed to uninitialize Lidar sensor. Exiting program");
+        printf("[MasterMind]: Failed to uninitialize Car. Exiting program");
         // exit(1);
         return EXIT_FAILURE;
     }
@@ -45,12 +45,13 @@ int MasterMind::run(){
     while (true){
 #if !DISABLE_LIDAR
         m_lidar.main();
-#endif
+    // TODO: Organize
     assert(m_observations.lidarReadings.size() > 0);
     float distThreshold_mm = 100.0f;
     float angleThreshold = 0.05f;
     float minLineLength = 30;
     vector<vector<scanDot>> extractedLines = m_LineExtractor.splitAndMerge(m_observations.lidarReadings, distThreshold_mm, angleThreshold, minLineLength);
+#endif
     
 
 #if !DISABLE_CAR
