@@ -17,16 +17,17 @@ struct scanDot {
     float dist;
 };
 
-// Container for wheel encoder readings
-struct WheelEncoderDataContainer {
-    int leftWheel = 0;
-    int leftWheelPrev = 0;
-    int rightWheel = 0;
-    int rightWheelPrev = 0;
+struct OdometryDataContainer {
+    float dx = 0.0f; // mm
+    float dy = 0.0f; // mm
+    float dTheta = 0.0f; // Radians
+    float globalX = 0.0f; // mm
+    float globalY = 0.0f; // mm
+    float globalTheta = 0.0f; // mm
 };
 
 // Sensor readings object to be filled by lidar and wheel encoders, and consumed by mastermind
 struct Observation {
     vector<scanDot> lidarReadings;
-    WheelEncoderDataContainer wheelEncoderReadings;
+    OdometryDataContainer odometry;
 };
