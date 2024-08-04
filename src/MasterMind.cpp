@@ -20,7 +20,15 @@ int MasterMind::init()
         return EXIT_FAILURE;
     };
 #endif
+
+#if !DISABLE_SLAM
+    if(slamAlgo.init() == EXIT_FAILURE){
+        printf("MasterMind]: Failed to initialize SLAM. Exiting program\n");
+        return EXIT_FAILURE;
+    }
+#endif
     return EXIT_SUCCESS;
+
 }
 
 int MasterMind::uninit(){
@@ -45,9 +53,11 @@ int MasterMind::run(){
     while (true){
 #if !DISABLE_LIDAR
         m_lidar.main();
-    // TODO: Organize
 #endif
-    
+
+#if !DISABLE_SLAM
+    slamAlgo.step(m_observations.lidarFeatureLines);
+#endif
 
 #if !DISABLE_CAR
         m_car.main();
