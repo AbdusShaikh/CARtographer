@@ -166,7 +166,9 @@ vector<vector<scanDot>> LineExtractor::filterSegments(vector<vector<scanDot>> me
         if ((int) mergedSegments[i].size() < minLineLength){
             continue;
         }
-        filteredSegments.push_back(mergedSegments[i]);
+        vector<scanDot> currSegmentEndpoints = {mergedSegments[i].front(), mergedSegments[i].back()};
+        // filteredSegments.push_back(mergedSegments[i]);
+        filteredSegments.push_back(currSegmentEndpoints);
     }
     return filteredSegments;
 }

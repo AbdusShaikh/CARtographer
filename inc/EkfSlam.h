@@ -10,8 +10,9 @@ class EkfSlam {
         cv::Mat getState();
     private:
         void predict();
-        void update(cv::Mat measurements);
-        cv::Mat createMeasurementsMat(vector<vector<scanDot>> measurements);
+        void update();
+        void createMeasurementsMat(vector<vector<scanDot>> measurements);
+        void padInput();
         cv::Mat predictMeasurements();
         // Matrices
         cv::Mat stateTransition_F;
