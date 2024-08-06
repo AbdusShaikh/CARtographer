@@ -9,11 +9,16 @@ class EkfSlam {
         cv::Mat step(vector<vector<scanDot>> measurements);
         cv::Mat getState();
     private:
+        // Algorithm functions
         void predict();
-        void update();
+        void update(vector<vector<scanDot>> measurements);
+        // Utility functions
         void createMeasurementsMat(vector<vector<scanDot>> measurements);
         void padInput();
-        cv::Mat predictMeasurements();
+        void predictMeasurements();
+        void associateMeasurements(); // Nearest-neighbour based landmark data association algorithm. Rewrite the current measurements Matrix to match the order of the state vector.
+
+
         // Matrices
         cv::Mat stateTransition_F;
         cv::Mat control_G;
@@ -30,6 +35,7 @@ class EkfSlam {
         cv::Mat trueState_x;
         // Output of Lidar reading
         cv::Mat measurement_z;
+        cv::Mat predictedMeasurement_z;
         // (dx, dy, dTheta)
         cv::Mat input_u;
         cv::Mat processNoise_w;
