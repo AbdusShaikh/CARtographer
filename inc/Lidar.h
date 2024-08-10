@@ -1,8 +1,13 @@
 #include "common.h"
 #include "sl_lidar_driver.h"
 #include "sl_lidar.h"
-#include "LineExtractor.h"
-#define DISPLAY_LIDAR_READINGS 1
+#include "SplitAndMerge.h"
+#include "Ransac.h"
+
+#define DISPLAY_LIDAR_READINGS 0
+#define USE_SPLITANDMERGE 0
+#define USE_RANSAC 1
+
 #if DISPLAY_LIDAR_READINGS
     #include <opencv2/opencv.hpp>
     #include <opencv2/highgui.hpp>
@@ -24,7 +29,12 @@ class Lidar{
         void main();
 
     private:
-        LineExtractor m_LineExtractor;
+#if USE_SPLITANDMERGE
+        SplitAndMerge m_LineExtractorSplitAndMerge;
+#endif
+#if USE_RANSAC
+        Ransac m_lineExtractorRansac;
+#endif
         string m_serialPort = "/dev/ttyUSB0";
         int m_baudRate = 115200;
         ILidarDriver * m_driver;

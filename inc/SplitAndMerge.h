@@ -1,7 +1,7 @@
-#define DISPLAY_EXTRACTED_LINES 1
+#define DISPLAY_EXTRACTED_LINES_SPLITANDMERGE 1
 
 #include "common.h"
-#if DISPLAY_EXTRACTED_LINES
+#if DISPLAY_EXTRACTED_LINES_SPLITANDMERGE
     #include <opencv2/opencv.hpp>
     #include <opencv2/highgui.hpp>
     #include <opencv2/imgproc.hpp>
@@ -14,7 +14,7 @@ struct CartesianCoord {
     float y;
 };
 
-class LineExtractor{
+class SplitAndMerge{
     public:
         vector<vector<scanDot>>  splitAndMerge(vector<scanDot> lidarPoints, float distThreshold, float angThreshold, int minLineLength);
     private:

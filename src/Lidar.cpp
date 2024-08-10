@@ -69,10 +69,10 @@ void Lidar::displayLidarData(){
     Mat image = Mat::zeros(800, 800, CV_8UC3);
     Point center = Point(400, 400);
     circle(image, center, 5, Scalar(0, 255,0));
+    int scaleFactor = 20;
     for (int i = 0; i < (int) m_nodes.size(); i++){
         scanDot currNode = m_nodes[i];
         if (!currNode.dist) continue;
-        int scaleFactor = 20;
         Point cartesianPoint = Point(center.x + ((currNode.dist / scaleFactor) * cos(currNode.angle)), center.y - ((currNode.dist / scaleFactor) * sin(currNode.angle)));
         Scalar pointColour = Scalar(255, 0, 0);
         circle(image, cartesianPoint, 3, pointColour, 2);
@@ -91,10 +91,17 @@ void Lidar::main(){
 #if DISPLAY_LIDAR_READINGS
     displayLidarData();
 #endif
+#if USE_SPLITANDMERGE
     float distThreshold_mm = 100.0f;
     float angleThreshold = 0.05f;
-    float minLineLength = 30;
+    float minLineLength = 10;
     vector<vector<scanDot>> extractedLines = m_LineExtractor.splitAndMerge(m_nodes, distThreshold_mm, angleThreshold, minLineLength);
     *m_lineFeatures = extractedLines;
+#endif 
+
+#if USE_RANSAC
+    m_lineExtractorRansac.init(m_nodes);
+    m_lineExtractorRansac.run();
+#endif
     return;
 }
