@@ -52,7 +52,7 @@ int Lidar::scan(){
     if (SL_IS_OK(m_driver->grabScanDataHq(newNodes, nodeCount))){
         m_driver->ascendScanData(newNodes, nodeCount);
         for (int i = 0; i < (int)nodeCount; i++){
-            //if (!newNodes[i].dist_mm_q2) continue;
+            if (!newNodes[i].dist_mm_q2) continue;
             scanDot dot;
             dot.dist = newNodes[i].dist_mm_q2;
             float angle_deg = (newNodes[i].angle_z_q14 *90.0f) / 16384.0f;
