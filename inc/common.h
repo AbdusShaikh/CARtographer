@@ -12,7 +12,6 @@ using namespace std;
 
 // Single Lidar point struct
 struct scanDot {
-    uint8_t quality;
     float angle;
     float dist;
 };

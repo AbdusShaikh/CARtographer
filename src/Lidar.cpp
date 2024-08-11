@@ -57,7 +57,6 @@ int Lidar::scan(){
             dot.dist = newNodes[i].dist_mm_q2;
             float angle_deg = (newNodes[i].angle_z_q14 *90.0f) / 16384.0f;
             dot.angle = (angle_deg * M_PI) / 180.0f;
-            dot.quality = newNodes[i].quality;
             m_nodes.push_back(dot);
         }
         return EXIT_SUCCESS;
