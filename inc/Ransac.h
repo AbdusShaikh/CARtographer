@@ -23,7 +23,7 @@ class Ransac{
         Ransac();
         ~Ransac();
         void init(const vector<scanDot> lidarPoints);
-        void run();
+        vector<scanDot> run();
     private:
         // Algorithm hlper functions
         Line fitLine(const vector<Point2f> samplePoints, int startIdx, int endIdx);

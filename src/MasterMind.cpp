@@ -6,7 +6,7 @@ MasterMind::~MasterMind(){};
 int MasterMind::init()
 {
 #if !DISABLE_LIDAR
-    if (m_lidar.init(&m_observations.lidarFeatureLines) == EXIT_FAILURE) {
+    if (m_lidar.init(&m_observations.lidarExtractedLandmarks) == EXIT_FAILURE) {
         printf("[MasterMind]: Failed to initialize Lidar sensor. Exiting program\n");
         // exit(1);
         return EXIT_FAILURE;
@@ -56,7 +56,7 @@ int MasterMind::run(){
 #endif
 
 #if !DISABLE_SLAM
-    slamAlgo.step(m_observations.lidarFeatureLines);
+    slamAlgo.step(m_observations.lidarExtractedLandmarks, m_observations.odometry);
 #endif
 
 #if !DISABLE_CAR

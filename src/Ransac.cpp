@@ -24,7 +24,7 @@ void Ransac::init(const vector<scanDot> lidarPoints){
 
 }
 
-void Ransac::run(){
+vector<scanDot> Ransac::run(){
     int currAttempts = 0;
     std::random_device rd;
     std::mt19937 gen(rd());
@@ -49,6 +49,7 @@ void Ransac::run(){
 #if DEBUG_RANSAC
     printf("[RANSAC:] Attempts: %d\n", currAttempts);
 #endif
+    return m_extractedLandmarks;
 }
 
 // --------------------------

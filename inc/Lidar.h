@@ -4,7 +4,7 @@
 #include "SplitAndMerge.h"
 #include "Ransac.h"
 
-#define DISPLAY_LIDAR_READINGS 0
+#define DISPLAY_LIDAR_READINGS 1
 #define USE_SPLITANDMERGE 0
 #define USE_RANSAC 1
 
@@ -22,7 +22,7 @@ class Lidar{
     public:
         Lidar();
         ~Lidar();
-        int init(vector<vector<scanDot>> *lidarFeatureDeposit);
+        int init(vector<scanDot> *lidarFeatureDeposit);
         int uninit();
         int scan();
         void displayLidarData();
@@ -40,6 +40,8 @@ class Lidar{
         ILidarDriver * m_driver;
         IChannel* m_serialChannel;
         vector<scanDot> m_nodes;
-        vector<vector<scanDot>> *m_lineFeatures;
+        // vector<vector<scanDot>> *m_lineFeatures;
+        vector<scanDot> *m_lidarFeatureDeposit;
+
 
 };

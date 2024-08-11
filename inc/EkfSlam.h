@@ -6,18 +6,21 @@ class EkfSlam {
         EkfSlam();
         ~EkfSlam();
         int init();
-        cv::Mat step(vector<vector<scanDot>> measurements);
+        cv::Mat step(vector<scanDot> measurements, OdometryDataContainer controlInputs);
         cv::Mat getState();
     private:
         // Algorithm functions
         void predict();
-        void update(vector<vector<scanDot>> measurements);
-        // Utility functions
-        void createMeasurementsMat(vector<vector<scanDot>> measurements);
-        void padInput();
+        void update();
+        // Algorithm helper-functions
         void predictMeasurements();
-        void associateMeasurements(); // Nearest-neighbour based landmark data association algorithm. Rewrite the current measurements Matrix to match the order of the state vector.
-
+        void associateMeasurements(float distThreshold); // Nearest-neighbour based landmark data association algorithm. Rewrite the current measurements Matrix to match the order of the state vector.
+        // Utility functions
+        void createInputsVec(OdometryDataContainer controlInputs);
+        void createMeasurementsVec(vector<scanDot> measurements);
+        void createObservationJacobian();
+        void robotToWorldCoord(float* worldR, float* worldTheta, float robotR, float robotTheta);
+        void worldToRobotCoord(float* robotR, float* robotTheta, float worldR, float worldTheta);
 
         // Matrices
         cv::Mat stateTransition_F;

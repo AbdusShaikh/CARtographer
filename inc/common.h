@@ -27,7 +27,7 @@ struct OdometryDataContainer {
 
 // Sensor readings object to be filled by lidar and wheel encoders, and consumed by mastermind
 struct Observation {
-    vector<scanDot> lidarReadings;
-    vector<vector<scanDot>> lidarFeatureLines;
+    // vector<scanDot> lidarReadings;
+    vector<scanDot> lidarExtractedLandmarks;
     OdometryDataContainer odometry;
 };

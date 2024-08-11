@@ -4,7 +4,7 @@ Lidar::Lidar(){};
 
 Lidar::~Lidar(){}
 
-int Lidar::init(vector<vector<scanDot>> *lidarFeatureDeposit ){
+int Lidar::init(vector<scanDot> *lidarFeatureDeposit ){
     m_driver = *createLidarDriver();
     if (!m_driver){
         printf("[RPLIDAR]: Insufficent memory, exit\n");
@@ -22,7 +22,8 @@ int Lidar::init(vector<vector<scanDot>> *lidarFeatureDeposit ){
     }
 
     printf("[RPLIDAR]: Connection Successful\n");
-    m_lineFeatures = lidarFeatureDeposit;
+    // m_lineFeatures = lidarFeatureDeposit;
+    m_lidarFeatureDeposit = lidarFeatureDeposit;
     m_driver->setMotorSpeed();
     // start scan...
     m_driver->startScan(0,1);
@@ -100,7 +101,8 @@ void Lidar::main(){
 
 #if USE_RANSAC
     m_lineExtractorRansac.init(m_nodes);
-    m_lineExtractorRansac.run();
+    vector<scanDot> extractedLandmarks = m_lineExtractorRansac.run();
+    *m_lidarFeatureDeposit = extractedLandmarks;
 #endif
     return;
 }
