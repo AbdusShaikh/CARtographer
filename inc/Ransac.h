@@ -1,7 +1,7 @@
 #include "common.h"
 #include <random>
 #include <opencv2/core/types.hpp>
-#define DISPLAY_EXTRACTED_LINES_RANSAC 0
+#define DISPLAY_EXTRACTED_LINES_RANSAC 1
 
 #if DISPLAY_EXTRACTED_LINES_RANSAC
     #include <opencv2/opencv.hpp>
@@ -21,22 +21,22 @@ class Ransac{
     public:
         Ransac();
         ~Ransac();
-        void init(vector<scanDot> lidarPoints);
+        void init(const vector<scanDot> lidarPoints);
         void run();
     private:
         // Algorithm functions
-        Line fitLine(vector<Point> samplePoints, int startIdx, int endIdx);
+        Line fitLine(const vector<Point2f> samplePoints, int startIdx, int endIdx);
         void testLine(Line line);
         // Utility Functions
-        vector<Point> convertPointsToCartesian(vector<scanDot> lidarPoints);
-        float distPointToLine(Point point, Line line);
+        vector<Point2f> convertPointsToCartesian(const vector<scanDot> lidarPoints);
+        float distPointToLine(Point2f point, Line line);
 #if DISPLAY_EXTRACTED_LINES_RANSAC
         void displayExtractedLines();
 #endif
 
-        vector<Point> m_lidarPointsCartesian;
-        vector<Point> m_associatedPoints;
-        vector<Point> m_unassociatedPoints;
+        vector<Point2f> m_lidarPointsCartesian;
+        vector<Point2f> m_associatedPoints;
+        vector<Point2f> m_unassociatedPoints;
         vector<Line> m_extractedLines;
 
         int maxAttempts;

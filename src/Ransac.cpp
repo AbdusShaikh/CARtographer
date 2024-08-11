@@ -3,19 +3,15 @@
 Ransac::Ransac(){};
 Ransac::~Ransac(){};
 
-void Ransac::init(vector<scanDot> lidarPoints){
-    // int redundancyFactor = 7;
-    // int lineCountHypothesis = 4;
-    // maxAttempts = lineCountHypothesis * redundancyFactor;  
-    // initialSampleCount = lidarPoints.size() / (3 * lineCountHypothesis);
-    // // degreesFromInitialSample;
-    // maxDistToLine = 300; // mm
-    // minLinePointCount = (lidarPoints.size() / (lineCountHypothesis * redundancyFactor));
+// ------------------------
+// Main Algorithm functions
+// ------------------------
 
+void Ransac::init(const vector<scanDot> lidarPoints){
     maxAttempts = 1000;  
-    initialSampleCount = 6;
-    maxDistToLine = 300; // mm
-    minLinePointCount = 10;
+    initialSampleCount = 10;
+    maxDistToLine = 5; // mm
+    minLinePointCount = 90;
 
     m_unassociatedPoints.clear();
     m_associatedPoints.clear();
@@ -26,18 +22,17 @@ void Ransac::init(vector<scanDot> lidarPoints){
 
 void Ransac::run(){
     int currAttempts = 0;
-    std::default_random_engine generator;
+    std::random_device rd;
+    std::mt19937 gen(rd());
     while (currAttempts < maxAttempts && m_unassociatedPoints.size() >= minLinePointCount){
-        std::uniform_int_distribution<int> distribution(0, m_unassociatedPoints.size() - 1);
-        //TODO: Always returns 0 for some reason
-        int randIdx = distribution(generator);  // generate a random index into unassociatedPairs;
-        int startIdx = randIdx - (initialSampleCount / 2); // Where to begin construction of line of best fit
-        int endIdx = randIdx + (initialSampleCount / 2); // Where to end construction of line of best fit
-        if (startIdx < 0){ // If startIdx < 0, add the residual to endIdx (to maintain line length) and set startIdx to 0
-            endIdx += abs(startIdx);
-            startIdx = 0;
+        std::uniform_int_distribution<int> dist(0, m_unassociatedPoints.size() - 1); // Get a random index into m_unassociatedPoints
+        int startIdx = dist(gen); // Where to start construction of line of best fit
+        int endIdx = startIdx + initialSampleCount; // Where to end construction of line of best fit
+        if (endIdx > (int) m_unassociatedPoints.size() - 1){
+            startIdx -= (endIdx - (m_unassociatedPoints.size() - 1)); // How far away is endIdx from max index value
+            endIdx = m_unassociatedPoints.size() - 1;
         }
-        endIdx = min(endIdx, (int) m_unassociatedPoints.size() - 1);
+        startIdx = max(0, startIdx); // Cut startIdx off at 0
 
         Line fittedLine = fitLine(m_unassociatedPoints, startIdx, endIdx);
         testLine(fittedLine);
@@ -49,8 +44,12 @@ void Ransac::run(){
 #endif
 }
 
-// Fit a line through "samplePoints" according to least squares
-Line Ransac::fitLine(vector<cv::Point> samplePoints, int startIdx, int endIdx){
+// --------------------------
+// Algorithm helper functions
+// --------------------------
+
+// Fit a line through "samplePoints" according to least squares method
+Line Ransac::fitLine(const vector<Point2f> samplePoints, int startIdx, int endIdx){
     //Calculate sums of x and y points
     float sumX = 0, sumY = 0;
     float numPoints = endIdx - startIdx + 1;
@@ -73,6 +72,8 @@ Line Ransac::fitLine(vector<cv::Point> samplePoints, int startIdx, int endIdx){
     float slope = slopeNumerator / slopeDenominator;
     float yIntercept = meanY - (slope * meanX);
     
+    // y = mx + b
+    // 0 = mx -y + b
     // Convert to line of the form ax + by + c = 0
     float a = slope;
     float b = -1;
@@ -94,8 +95,8 @@ Line Ransac::fitLine(vector<cv::Point> samplePoints, int startIdx, int endIdx){
 //          - Fit a new line through these points and add to m_extractedLine.
 //      - If no: This is a bad line. Do not update anything and move on
 void Ransac::testLine(Line line){
-    vector<cv::Point> localAssociatedPoints;
-    vector<cv::Point> localUnassociatedPoints;
+    vector<Point2f> localAssociatedPoints;
+    vector<Point2f> localUnassociatedPoints;
     
     for (int i = 0; i < (int) m_unassociatedPoints.size(); i ++){
         if (distPointToLine(m_unassociatedPoints[i], line) <= maxDistToLine){
@@ -108,14 +109,18 @@ void Ransac::testLine(Line line){
     
     if (localAssociatedPoints.size() >= minLinePointCount){
         m_unassociatedPoints = localUnassociatedPoints;
-        m_associatedPoints = localAssociatedPoints;
+        m_associatedPoints.insert(m_associatedPoints.end(), localAssociatedPoints.begin(), localAssociatedPoints.end()); 
         Line extractedLine = fitLine(localAssociatedPoints, 0, localAssociatedPoints.size() - 1);
         m_extractedLines.push_back(extractedLine);
     }
 }
 
+// -----------------
+// Utility functions
+// -----------------
+
 // Distance from a point to a line in cartesian coordinates
-float Ransac::distPointToLine(cv::Point point, Line line){
+float Ransac::distPointToLine(Point2f point, Line line){
     float numerator = fabs((line.a * point.x) + (line.b * point.y) + line.c);
     float denominator = sqrt((line.a * line.a) + (line.b * line.b));
     float dist = numerator / denominator;
@@ -124,12 +129,12 @@ float Ransac::distPointToLine(cv::Point point, Line line){
 }
 
 // Convert all given lidarPoints from polar coordinates to cartesian coordinates
-vector<cv::Point> Ransac::convertPointsToCartesian(vector<scanDot> lidarPoints){
-    vector<cv::Point> cartesianPoints;
+vector<Point2f> Ransac::convertPointsToCartesian(const vector<scanDot> lidarPoints){
+    vector<Point2f> cartesianPoints;
     for (int i = 0; i <  (int) lidarPoints.size(); i++){
         float x = lidarPoints[i].dist * cos(lidarPoints[i].angle);
         float y = lidarPoints[i].dist * sin(lidarPoints[i].angle);
-        cartesianPoints.push_back(cv::Point(x, y));
+        cartesianPoints.push_back(Point2f(x, y));
     }
     return cartesianPoints;
 };
@@ -142,16 +147,15 @@ void Ransac::displayExtractedLines(){
     int scaleFactor = 20;
     for (int i = 0; i < (int) m_extractedLines.size(); i++){
         // ax + by + c = 0
-        // by = -ax - c
-        // y = (-ax - c) / b
+        // y = -(ax + b) / b
         Line currLine = m_extractedLines[i];
-        float x1 = image.cols + 100;
-        float y1 = ((-currLine.a * x1) - currLine.c) / currLine.b;
-        float x2 = image.cols - 100;
-        float y2 = ((-currLine.a * x2) - currLine.c) / currLine.b;
+        float x1 = image.cols;
+        float y1 = -((currLine.a * x1) + (currLine.c / scaleFactor)) / currLine.b;
+        float x2 = -image.cols;
+        float y2 = -((currLine.a * x2) + (currLine.c / scaleFactor)) / currLine.b;
 
-        Point displayPoint1 = Point(center.x + (x1 / scaleFactor), center.y - (y1 /scaleFactor));
-        Point displayPoint2 = Point(center.x + (x2 / scaleFactor), center.y - (y2 / scaleFactor));
+        Point displayPoint1 = Point(center.x + x1, center.y - (y1));
+        Point displayPoint2 = Point(center.x + x2, center.y - (y2));
         Scalar pointColour = Scalar(0, 255, 0);
         line(image, displayPoint1, displayPoint2, pointColour);
     }
