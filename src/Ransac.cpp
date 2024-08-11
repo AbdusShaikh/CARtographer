@@ -1,4 +1,6 @@
 #include "Ransac.h"
+//TODO:
+// Line detection straight ahead of the lidar suffers because points greater than 0 rad and less than 0 rad are considered too different
 
 Ransac::Ransac(){};
 Ransac::~Ransac(){};
@@ -8,14 +10,16 @@ Ransac::~Ransac(){};
 // ------------------------
 
 void Ransac::init(const vector<scanDot> lidarPoints){
-    maxAttempts = 1000;  
-    initialSampleCount = 10;
-    maxDistToLine = 5; // mm
-    minLinePointCount = 90;
+    maxAttempts = 500;  
+    initialSampleCount = 30;
+    maxDistToLine = 7.0f; // mm
+    minLinePointCount = 75.0f;
+    landmarkMergeThreshold = 20.0f;
 
     m_unassociatedPoints.clear();
     m_associatedPoints.clear();
     m_extractedLines.clear();
+    m_extractedLandmarks.clear();
     m_unassociatedPoints = convertPointsToCartesian(lidarPoints);
 
 }
@@ -38,9 +42,12 @@ void Ransac::run(){
         testLine(fittedLine);
         currAttempts ++;
     }
-
+    extractLandmarks();
 #if DISPLAY_EXTRACTED_LINES_RANSAC
     displayExtractedLines();
+#endif
+#if DEBUG_RANSAC
+    printf("[RANSAC:] Attempts: %d\n", currAttempts);
 #endif
 }
 
@@ -115,6 +122,71 @@ void Ransac::testLine(Line line){
     }
 }
 
+// Find the closest point on each line to the robot (origin). Return this as the landmark
+void Ransac::extractLandmarks(){
+    for (int i = 0; i < (int) m_extractedLines.size(); i ++){
+        Line currLine = m_extractedLines[i];
+        float denom = (currLine.a * currLine.a) + (currLine.b * currLine.b);
+        float x = - (currLine.a * currLine.c) / denom;
+        float y = - (currLine.b * currLine.c) / denom;
+        float r = sqrt((x * x) +(y * y));
+        float theta = atan2(y, x);
+
+        scanDot newLandmark;
+        newLandmark.dist = r;
+        newLandmark.angle = theta;
+        m_extractedLandmarks.push_back(newLandmark);
+    }
+    mergeLandmarks();
+}
+
+// Some lines are close enough together to be considered the same line. Merge the resulting landmarks based on distance rather than merging the lines
+void Ransac::mergeLandmarks(){
+    vector<vector<scanDot>> similarLandmarks;
+    // Group all landmarks that are within at most (maxDist * 2) mm of eachother (distance is only checked from first point)
+    for (int i = 0; i < (int) m_extractedLandmarks.size(); i ++){
+        scanDot currLandmark = m_extractedLandmarks[i];
+        bool foundSimilar = false;
+        for (int j = 0; j < (int) similarLandmarks.size(); j ++){
+            scanDot currMerged = similarLandmarks[j][0];
+            float dist = sqrt((currLandmark.dist * currLandmark.dist) + (currMerged.dist * currMerged.dist) - (2.0f * currLandmark.dist * currMerged.dist * cos(currMerged.angle - currLandmark.angle)));
+            if (dist < landmarkMergeThreshold){
+                similarLandmarks[j].push_back(currLandmark);
+                foundSimilar = true;
+                break;
+            }
+        }
+        if (!foundSimilar){
+            similarLandmarks.push_back({currLandmark});
+        };
+    }
+    vector<scanDot> mergedLandmarks;
+    for (int i = 0; i < (int) similarLandmarks.size(); i ++){
+        // Convert grouped points to cartesian to find the center
+        vector<Point2f> cartesians = convertPointsToCartesian(similarLandmarks[i]);
+        float meanX = 0, meanY = 0;
+        for (int j = 0; j < (int) cartesians.size(); j++){
+            meanX += cartesians[j].x;
+            meanY += cartesians[j].y;
+        }
+        meanX /= cartesians.size();
+        meanY /= cartesians.size();
+        // Convert center point to radian and add to list
+        scanDot mergedLangmark;
+        mergedLangmark.angle = atan2(meanY, meanX);
+        mergedLangmark.dist = sqrt((meanX * meanX) + (meanY * meanY));
+        mergedLandmarks.push_back(mergedLangmark);
+    }
+#if DEBUG_RANSAC
+    int landmarksBefore = m_extractedLandmarks.size();
+    int landmarksAfter = mergedLandmarks.size();
+    if (landmarksBefore > landmarksAfter){
+        printf("[RANSAC:] Merged Landmarks; %d -> %d\n", landmarksBefore, landmarksAfter);
+    }
+#endif
+    m_extractedLandmarks = mergedLandmarks;
+}
+
 // -----------------
 // Utility functions
 // -----------------
@@ -143,9 +215,13 @@ vector<Point2f> Ransac::convertPointsToCartesian(const vector<scanDot> lidarPoin
 void Ransac::displayExtractedLines(){
     Mat image = Mat::zeros(800, 800, CV_8UC3);
     Point center = Point(image.rows / 2, image.cols / 2);
-    circle(image, center, 5, Scalar(0, 255,0));
+    Scalar green = Scalar(0, 255, 0);
+    Scalar red = Scalar(0,0,255);
+    circle(image, center, 5, green);
+
     int scaleFactor = 20;
     for (int i = 0; i < (int) m_extractedLines.size(); i++){
+        // --- Display line ---
         // ax + by + c = 0
         // y = -(ax + b) / b
         Line currLine = m_extractedLines[i];
@@ -154,10 +230,18 @@ void Ransac::displayExtractedLines(){
         float x2 = -image.cols;
         float y2 = -((currLine.a * x2) + (currLine.c / scaleFactor)) / currLine.b;
 
-        Point displayPoint1 = Point(center.x + x1, center.y - (y1));
-        Point displayPoint2 = Point(center.x + x2, center.y - (y2));
-        Scalar pointColour = Scalar(0, 255, 0);
-        line(image, displayPoint1, displayPoint2, pointColour);
+        Point displayPoint1 = Point(center.x + x1, center.y - y1);
+        Point displayPoint2 = Point(center.x + x2, center.y - y2);
+        line(image, displayPoint1, displayPoint2, green);
+    }
+
+    for (int i = 0; i < (int) m_extractedLandmarks.size(); i++){
+        scanDot currLandmark = m_extractedLandmarks[i];
+        float x = currLandmark.dist * cos(currLandmark.angle);
+        float y = currLandmark.dist * sin(currLandmark.angle);
+
+        Point displayPoint = Point(center.x + (x / scaleFactor), center.y - (y / scaleFactor));
+        circle(image, displayPoint, 3, red, 2);
     }
     imshow("RANSAC", image);
     waitKey(1);
