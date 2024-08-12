@@ -4,14 +4,22 @@
 #include "SplitAndMerge.h"
 #include "Ransac.h"
 
+
 #define DISPLAY_LIDAR_READINGS 1
 #define USE_SPLITANDMERGE 0
 #define USE_RANSAC 1
+#define DUMP_LIDAR_READINGS 1
+
 
 #if DISPLAY_LIDAR_READINGS
     #include <opencv2/opencv.hpp>
     #include <opencv2/highgui.hpp>
     #include <opencv2/imgproc.hpp>
+#endif
+
+#if DUMP_LIDAR_READINGS
+    #include <iostream>
+    #include <fstream>
 #endif
 
 using  namespace std;
@@ -23,12 +31,15 @@ class Lidar{
         Lidar();
         ~Lidar();
         int init(vector<scanDot> *lidarFeatureDeposit);
-        int uninit();
-        int scan();
-        void displayLidarData();
         void main();
+        int uninit();
 
     private:
+        int scan();
+        void displayLidarData();
+#if DUMP_LIDAR_READINGS
+        void dumpLidarReadings();
+#endif
 #if USE_SPLITANDMERGE
         SplitAndMerge m_LineExtractorSplitAndMerge;
 #endif

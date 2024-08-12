@@ -82,6 +82,26 @@ void Lidar::displayLidarData(){
     return;
 }
 
+void Lidar::dumpLidarReadings(){
+    std::ofstream outFile("LidarDump.txt", std::ios::app);
+
+    if (!outFile) {
+        std::cerr << "Error opening file for writing." << std::endl;
+    }
+    
+    float rangeSum = 0, angleSum = 0;
+    for (int i = 0; i < (int) m_nodes.size(); i++){
+        rangeSum += m_nodes[i].dist;
+        angleSum += m_nodes[i].angle;
+    }
+    float rangeMean = rangeSum / m_nodes.size();
+    float angleMean = angleSum / m_nodes.size();
+    outFile << rangeMean << ", " << angleMean << ", " << m_nodes.size() << std::endl;
+
+    // Close the file
+    outFile.close();
+}
+
 void Lidar::main(){
     if (scan() == EXIT_FAILURE){
         printf("[RPLIDAR]: Failure to scan in main loop. Exiting\n");
@@ -90,6 +110,9 @@ void Lidar::main(){
     assert(m_nodes.size() > 0);
 #if DISPLAY_LIDAR_READINGS
     displayLidarData();
+#endif
+#if DUMP_LIDAR_READINGS
+    dumpLidarReadings();
 #endif
 #if USE_SPLITANDMERGE
     float distThreshold_mm = 100.0f;
