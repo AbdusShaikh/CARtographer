@@ -93,6 +93,11 @@ void Car::computeOdometry(){
 
     float lWheelDistTravelled_mm = (lTicks / m_carDimensions.encoderSlots) * m_carDimensions.wheelCircumference;
     float rWheelDistTravelled_mm = (rTicks / m_carDimensions.encoderSlots) * m_carDimensions.wheelCircumference;
+
+    m_odometry->carWheelBase = m_carDimensions.wheelBase_mm;
+    m_odometry->leftWheelDist = lWheelDistTravelled_mm;
+    m_odometry->rightWheelDist = rWheelDistTravelled_mm;
+
     float avgDistTravelled_mm = (lWheelDistTravelled_mm + rWheelDistTravelled_mm) / 2.0f;
     float wheelDiff_mm = ((rWheelDistTravelled_mm - lWheelDistTravelled_mm));
 
