@@ -1,11 +1,49 @@
 #include "EkfSlam.h"
 EkfSlam::EkfSlam(){};
 EkfSlam::~EkfSlam(){};
+// STEPS:
+//  Predict:
+//      - Predict robot pose based on prediction model using wheel encoder outputs (control terms)
+//      - Update prediction model jacobian with new control terms (A)
+//      - Update process noise matrix with new control terms
+//      - Calculate new covariance for robot position (Only top-left 3x3 sub-matrix of covariance) 
+//          - P = A * P * A + Q
+//      - Update top 3 rows of covariance matrix (Robot to feature cross-correlation)
+//
+//  Data association (Called in the middle of update step? (when iterating over existing landmarks?)):
+//      - For each incoming landmark
+//          - Find the closest existing landmark (in it's predicted position h) to this by Euclidean distance
+//          - Only associate this landmark if it passes the following check
+//              - v^T * S^-1 * v <= lambda
+//                  - v = innovation (difference)
+//                  - S = innovation covaraince
+//                  - lambda = some constant validation gate value
+//
+// Update (Re-observed landmarks):
+//      - For each existing landmark
+//          - Predict its position relative to the new robot pose
+//              - Convert coordinates to polar in parallel
+//          - Compute new Jacobian(H) (Measurement model jacobian)
+//          - Update measurement noise matrix to use current landmarks range and bearing values
+//          - Calculate innovation covariance of this landmark S
+//          - Use Innovation covariance S to find closest incoming landmark to this existing landmark
+//          - If a matching landmark is found, update state vector
+//              - If no good match is found, do not update state vector with this information
+
+
 
 //TODO:
 // Initialize all matrices and vectors
+//  - True and predicted state
+//  - True and predicted covariance
+//  - 
 int EkfSlam::init(){
     trueState_x = cv::Mat(3, 1, CV_32F, {0, 0, 0 }); // Initial robot pose is at "origin"
+    predictedState_x = cv::Mat(3, 1, CV_32F, {0, 0, 0 }); // Initial robot pose is at "origin"
+
+    trueCovariance_P = cv::Mat::zeros(3,1, CV_32F);
+    predictedCovariance_P = cv::Mat::zeros(3,1, CV_32F);
+
     return EXIT_SUCCESS;
 }
 
@@ -15,8 +53,8 @@ int EkfSlam::init(){
 
 // "Main" function of Kalman Filter. Executed predict and update steps
 cv::Mat EkfSlam::step(vector<scanDot> measurements, OdometryDataContainer controlInputs){
-    createInputsVec(controlInputs);
-    createMeasurementsVec(measurements);
+    m_controlInputs = controlInputs;
+    m_measurements = measurements;
     predict();
     update();
     return trueState_x;
@@ -24,27 +62,44 @@ cv::Mat EkfSlam::step(vector<scanDot> measurements, OdometryDataContainer contro
 
 // Predict step of Kalman Filtering
 void EkfSlam::predict(){
-    predictedState_x = trueState_x + input_u;
-    predictMeasurements();
-    associateMeasurements(1.0f);
-    // Identity matrix
-    cv::Mat stateTransitionJacobian = cv::Mat::eye(trueState_x.rows, trueState_x.cols, CV_32F);
-    // (F_y * P_(t-1) * (F_y)^T) + (F_u * Q_t * (F_u)^T))
-    predictedEstimateCovariance_P = (stateTransitionJacobian * trueEstimateCovariance_P * stateTransitionJacobian.t()) + (stateTransitionJacobian * processNoiseCovariance_Q * stateTransitionJacobian.t());
-}
+
+    float carWheelBase = m_controlInputs.carWheelBase;
+    float lDist_mm = m_controlInputs.leftWheelDist;
+    float rDist_mm = m_controlInputs.rightWheelDist;
+    float currX = trueState_x.at<float>(0,0);
+    float currY = trueState_x.at<float>(1,0);
+    float currTheta = trueState_x.at<float>(2,0);
+
+
+    float avgDistTravelled_mm = (lDist_mm + rDist_mm) / 2.0f;
+    float wheelDiff_mm = ((rDist_mm - lDist_mm));
+
+    float dx_mm = (avgDistTravelled_mm * cos(currTheta + (wheelDiff_mm / (2.0f * carWheelBase))));
+    float dy_mm = (avgDistTravelled_mm * sin(currTheta + (wheelDiff_mm / (2.0f * carWheelBase))));
+    float dTheta = wheelDiff_mm / carWheelBase;
+
+    predictStateVec(currX + dx_mm, currY + dy_mm, currTheta + dTheta);
+    updateTransitionJacobian(dx_mm, dy_mm);
+    updateProcessNoise(dx_mm, dy_mm, dTheta);
+
+    predictCovarianceMat();
+    // predictMeasurements();
+ }
 
 // Update step of Kalman Filtering
 void EkfSlam::update(){
-    cv::Mat innovationCovariance = (observation_H * predictedEstimateCovariance_P * observation_H.t()) + measurementCovariance_R;
-    kalmanGain_K = predictedEstimateCovariance_P * observation_H * (innovationCovariance.inv());
-    trueState_x = predictedState_x + kalmanGain_K * (measurement_z - predictedMeasurement_z);
-    trueEstimateCovariance_P = predictedEstimateCovariance_P - (kalmanGain_K * innovationCovariance * kalmanGain_K.t());
+    
+    // cv::Mat innovationCovariance = (observation_H * predictedCovariance_P * observation_H.t()) + measurementNoise_R;
+    // kalmanGain_K = predictedCovariance_P * observation_H * (innovationCovariance.inv());
+    // trueState_x = predictedState_x + kalmanGain_K * (measurement_z - predictedMeasurement_z);
+    // trueCovariance_P = predictedCovariance_P - (kalmanGain_K * innovationCovariance * kalmanGain_K.t());
 };
 
 // --------------------------
 // Algorithm helper functions
 // --------------------------
 
+// Prediction helpers
 // Predicts where the landmarks in the previous state will appear now in robot frame
 void EkfSlam::predictMeasurements(){
     assert((predictedState_x.rows - 3) % 2 == 0); // One measurement is given by 2 data points (distance, angle)
@@ -66,61 +121,43 @@ void EkfSlam::predictMeasurements(){
     }
 };
 
-//TODO: 
-// - Consider Mahalanobis distance over euclidean
-// - Identify new landmarks and add them to state/measurements vector
-
-// Line up (associate) measurements_z with predictedMeasurements_z to properly execute update step in Kalman Filter
-void EkfSlam::associateMeasurements(float distThreshold){
-    cv::Mat associatedMeasurements = cv::Mat::zeros(predictedMeasurement_z.rows, predictedMeasurement_z.cols, CV_32F);
-    
-    int predictedMeasurementRows = predictedMeasurement_z.rows; // This number may change if we encounter new landmarks so we want to use the initial valie
-    for (int i = 0; i < (int) measurement_z.rows; i += 2){
-        int bestMatchIdx = -1;
-        float minDist = INFINITY;
-        float r1 = measurement_z.at<float>(i, 0);
-        float r1sqrd = r1 * r1;
-        float theta1 = measurement_z.at<float>(i + 1, 0);
-        for (int j = 0; j < predictedMeasurementRows; j += 2){
-            float r2 = predictedMeasurement_z.at<float>(j, 0);
-            float theta2 = predictedMeasurement_z.at<float>(j + 1, 0);
-            float currDistance = sqrt(r1sqrd + (r2 * r2) - (2 * r1 * r2 * cos(theta2 - theta1)));
-            if (currDistance < minDist){
-                minDist = currDistance;
-                bestMatchIdx = j;
-            }
-        }
-        if (minDist < distThreshold){ // Found a good neighbour (successfully associated)
-            associatedMeasurements.at<float>(bestMatchIdx, 0) = measurement_z.at<float>(i, 0 );
-            associatedMeasurements.at<float>(bestMatchIdx + 1, 0) = measurement_z.at<float>(i + 1, 0 );
-        }
-        else { // Could not find good neighbour. Likely a new landmark
-            // Convert measurement coordinates from local to global coordinates 
-            float robotX = predictedState_x.at<float>(0, 0);
-            float robotY = predictedState_x.at<float>(1, 0);
-            float robotTheta = predictedState_x.at<float>(2, 0);
-
-            float measurementGlobalX = robotX + (r1 * cos(robotTheta + theta1)); // robotX + measurementX
-            float measurementGlobalY = robotY + (r1 * sin(robotTheta + theta1)); // robotY + measurementY
-
-            float globalR = sqrt((measurementGlobalX * measurementGlobalX) + (measurementGlobalY * measurementGlobalY));
-            float globalTheta = robotTheta + theta1; // Robot pose theta + measurement theta = global measurement theta
-            // Add this new landmark to the state vector
-            cv::Mat newLandmarkGlobal = cv::Mat(2, 1, CV_32F, {globalR, globalTheta});
-            cv::Mat newLandMarkLocal = cv::Mat(2, 1, CV_32F, {r1, theta1});
-            predictedMeasurement_z.push_back(newLandMarkLocal);
-            associatedMeasurements.push_back(newLandMarkLocal);
-            // TODO: What happens to the Measurement Model Jacobian if the 
-            predictedState_x.push_back(newLandmarkGlobal); // Add this landmark to the state vector. It will be updated in subsequent timesteps
-        }
-    }
-    measurement_z = associatedMeasurements;
+void EkfSlam::updateTransitionJacobian(float dx_mm, float dy_mm){
+    stateTransitionJacobian_A = cv::Mat::eye(3,3, CV_32F);
+    stateTransitionJacobian_A.at<float>(0, 2) = -dy_mm;
+    stateTransitionJacobian_A.at<float>(1, 2) = dx_mm;
 }
 
+void EkfSlam::predictStateVec(float predictedX, float predictedY, float predictedTheta){
+    predictedState_x.at<float>(0,0) = predictedX;
+    predictedState_x.at<float>(1,0) = predictedY;
+    predictedState_x.at<float>(2,0) = predictedTheta;
+}
+
+//TODO: Find proper noise measurements
+void EkfSlam::updateProcessNoise(float dx_mm, float dy_mm, float dTheta){
+    cv::Mat W = cv::Mat(3,1, CV_32F, {dx_mm, dy_mm, dTheta});
+    // 3x3 matrix with odometryError on the diagnol
+    cv::Mat C = cv::Mat::eye(3,3, CV_32F) * cv::Mat(3,1, CV_32F, {m_odometryError, m_odometryError, m_odometryError});
+    processNoise_Q = W * C * W.t();
+}
+
+// Update robot pose covariance and robot to feature correlations
+void EkfSlam::predictCovarianceMat(){
+    // Update the robot pose covariance submatrix
+    cv::Mat covarianceTopLeft = predictedCovariance_P(cv::Rect(0, 0, 3, 3));
+    predictedCovariance_P(cv::Rect(0, 0, 3, 3)) = (stateTransitionJacobian_A * covarianceTopLeft.clone() *  stateTransitionJacobian_A) + processNoise_Q;
+
+    // Update the robot to feature correlations
+    int covarianceCols = predictedCovariance_P.cols;
+    cv::Mat covarianceTop3Rows = predictedCovariance_P(cv::Rect(0, 0, covarianceCols, 3));
+    covarianceTop3Rows = stateTransitionJacobian_A * covarianceTop3Rows.clone();
+
+}
 // -----------------
 // Utility functions
 // -----------------
 
+// TODO: Probably remove
 // Creates a column vector (input vector) from vehicle movement data. Pads rows to allow addition with state vector
 void EkfSlam::createInputsVec(OdometryDataContainer controlInputs){
     input_u = cv::Mat(3, 1, CV_32F, {controlInputs.dx, controlInputs.dy, controlInputs.dTheta});
@@ -140,24 +177,3 @@ void EkfSlam::createMeasurementsVec(vector<scanDot> measurements){
     }
 }
 
-// Creates the jacobian matrix of the measurement model. 
-// Executed after data association because state and measurement vectors change size during that step.
-void EkfSlam::createObservationJacobian(){
-    observation_H = cv::Mat::zeros(measurement_z.rows, predictedState_x.rows, CV_32F);
-
-    for (int i = 0; i < (int) measurement_z.rows; i += 2){
-        // This landmark was in the state vector but not detected this timestep (not associated). Do not update it
-        if ((measurement_z.at<float>(i, 0) == measurement_z.at<float>(i, 0)) && (measurement_z.at<float>(i, 0) == 0.0f)){ 
-
-        }
-        // This measurement was detected before and detected again. Update it
-        else { 
-
-        }
-    }
-}
-
-// Expose the state to outside world
-cv::Mat EkfSlam::getState(){
-    return trueState_x;
-}
