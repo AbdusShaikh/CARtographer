@@ -1,56 +1,54 @@
 #include <opencv2/core/mat.hpp>
 #include "common.h"
 
+using namespace cv;
+
 class EkfSlam {
     public:
         EkfSlam();
         ~EkfSlam();
         int init();
-        cv::Mat step(vector<scanDot> measurements, OdometryDataContainer controlInputs);
+        Mat step(vector<scanDot> measurements, OdometryDataContainer controlInputs);
     private:
         // Algorithm functions
         void predict();
         void update();
         // Prediction step helper-functions
-        void predictMeasurements();
         void predictStateVec(float predictedX, float predictedY, float predictedTheta);
         void updateTransitionJacobian(float dx_mm, float dy_mm);
         void updateProcessNoise(float dx_mm, float dy_mm, float dTheta);
         void predictCovarianceMat();
         // Update step helpfer functions
+        void updateMeasurementJacobian(int currLandmarkIdx, float rX, float rY, float lX, float lY, float expectedRange);
+        bool associateLandmark(int currLandmarkIdx);
         // Utility functions
-        void createInputsVec(OdometryDataContainer controlInputs);
-        void createMeasurementsVec(vector<scanDot> measurements);
         void robotToWorldCoord(float* worldR, float* worldTheta, float robotR, float robotTheta);
         void worldToRobotCoord(float* robotR, float* robotTheta, float worldR, float worldTheta);
 
         // Matrices
-        // cv::Mat stateTransition_F;
-        cv::Mat stateTransitionJacobian_A;
-        // cv::Mat control_G;
-        cv::Mat predictedCovariance_P;
-        cv::Mat trueCovariance_P;
-        cv::Mat processNoise_Q;
-        cv::Mat measurementNoise_R;
-        cv::Mat observation_H;
-        cv::Mat kalmanGain_K;
+        // Mat stateTransition_F;
+        Mat stateTransitionJacobian_A;
+        // Mat control_G;
+        Mat predictedCovariance_P;
+        Mat trueCovariance_P;
+        Mat processNoise_Q;
+        Mat measurementNoise_R;
+        Mat measurementJacobian_H;
+        Mat innovationCovariance_S;
+        Mat kalmanGain_K;
+        Mat identity_V;
 
         // Vectors
         // State vectors (Robot pose and landmark position)
-        cv::Mat predictedState_x;
-        cv::Mat trueState_x;
-        // Output of Lidar reading
-        cv::Mat measurement_z;
-        cv::Mat predictedMeasurement_z;
-        // (dx, dy, dTheta)
-        cv::Mat input_u;
-        // cv::Mat processNoise_w;
-        // cv::Mat measurementNoise_v;
+        Mat predictedState_x;
+        Mat trueState_x;
+        Mat associatedLandmark_z;
+
 
         // Scalar values
-        float m_odometryError = 0.0f;
-        float m_measurementNoiseRange = 0.0f;
-        float m_measurementNoiseBearing = 0.0f;
+        float m_odometryError;
+        float m_measurementNoiseRange;
+        float m_measurementNoiseBearing;
 
         // Extermanl input
         OdometryDataContainer m_controlInputs;
