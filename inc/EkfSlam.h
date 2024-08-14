@@ -1,4 +1,4 @@
-#include <opencv2/core/mat.hpp>
+#include <opencv2/core.hpp>
 #include "common.h"
 
 using namespace cv;
@@ -13,6 +13,7 @@ class EkfSlam {
         // Algorithm functions
         void predict();
         void update();
+        void addNewLandmarks();
         // Prediction step helper-functions
         void predictStateVec(float predictedX, float predictedY, float predictedTheta);
         void updateTransitionJacobian(float dx_mm, float dy_mm);
