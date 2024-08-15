@@ -50,8 +50,8 @@ int EkfSlam::init(){
     trueState_x = Mat(3, 1, CV_32F, {0, 0, 0 }); // Initial robot pose is at "origin"
     predictedState_x = Mat(3, 1, CV_32F, {0, 0, 0 }); // Initial robot pose is at "origin"
 
-    trueCovariance_P = Mat::zeros(3,1, CV_32F);
-    predictedCovariance_P = Mat::zeros(3,1, CV_32F);
+    trueCovariance_P = Mat::zeros(3,3, CV_32F);
+    predictedCovariance_P = Mat::zeros(3,3, CV_32F);
 
     measurementNoise_R = Mat::zeros(2, 2, CV_32F);
     identity_V = Mat::eye(2,2, CV_32F);
@@ -145,27 +145,22 @@ void EkfSlam::update(){
         
 
     }
-    // Mat innovationCovariance = (observation_H * predictedCovariance_P * observation_H.t()) + measurementNoise_R;
-    // kalmanGain_K = predictedCovariance_P * observation_H * (innovationCovariance.inv());
-    // trueState_x = predictedState_x + kalmanGain_K * (measurement_z - predictedMeasurement_z);
-    // trueCovariance_P = predictedCovariance_P - (kalmanGain_K * innovationCovariance * kalmanGain_K.t());
 };
 
 
 // Dynamicallly grow state vector (AKA The Map) based on observations
 void EkfSlam::addNewLandmarks(){
-    vector<scanDot> newLandmarks; // DUMMY VECTOR
-    // float robotX = trueState_x.at<float>(0,0);
-    // float robotY = trueState_x.at<float>(1,0);
+    float robotX = trueState_x.at<float>(0,0);
+    float robotY = trueState_x.at<float>(1,0);
     float robotTheta = trueState_x.at<float>(2,0);
-
-    for (int i = 0; i < (int) newLandmarks.size(); i++){
+    // TODO: NOT ALL MEASUREMENTS ARE NEW LANDMARKS. SEPERATE THEM.
+    for (int i = 0; i < (int) m_measurements.size(); i++){
         // Convert landmark coordinates from robot frame to world frame ((robot_range, robot_bearing) -> (world_x, world_y))
-        float landmarkR = newLandmarks[i].dist;
-        float landmarkTheta = newLandmarks[i].angle;
+        float landmarkR = m_measurements[i].dist;
+        float landmarkTheta = m_measurements[i].angle;
         float globalTheta = robotTheta + landmarkTheta;
-        // float globalX = robotX + (landmarkR * cos(globalTheta));
-        // float globalY = robotY + (landmarkR * sin(globalTheta));
+        float landmarkGlobalX = robotX + (landmarkR * cos(globalTheta));
+        float landmarkGlobalY = robotY + (landmarkR * sin(globalTheta));
         
         float cosGlobalTheta = cos(globalTheta);
         float sinGlobalTheta = sin(globalTheta);
@@ -176,7 +171,7 @@ void EkfSlam::addNewLandmarks(){
         invMeasurementPoseJacobian.at<float>(1, 2) = landmarkR * cosGlobalTheta;
 
         // Jacobian matrix of the inverted measurement model with respect to range and bearing of new landmark
-        Mat invMeasurementLandmarkJacobian;
+        Mat invMeasurementLandmarkJacobian = Mat::zeros(2, 2, CV_32F);
         invMeasurementLandmarkJacobian.at<float>(0,0) = cosGlobalTheta;
         invMeasurementLandmarkJacobian.at<float>(0,1) = -landmarkR * sinGlobalTheta;
         invMeasurementLandmarkJacobian.at<float>(1,0) = sinGlobalTheta;
@@ -204,8 +199,8 @@ void EkfSlam::addNewLandmarks(){
         trueCovariance_P = newCovariance_P;
 
         // Add this landmark to the state vector
-        trueState_x.push_back(landmarkR);
-        trueState_x.push_back(landmarkTheta);
+        trueState_x.push_back(landmarkGlobalX);
+        trueState_x.push_back(landmarkGlobalY);
 
     }
 }

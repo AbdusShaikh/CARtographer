@@ -33,10 +33,10 @@ class Car{
         int init(OdometryDataContainer *odometryDeposit);
         int uninit();
         int drive(int speed, float ang);
+        void computeOdometry();
         void test();
         void main();
     private:
-        void computeOdometry();
         // Callback function to be executed upon recieving a rising edge on motor encoder A from either left or right side.
         static void readEncoders(int gpio, int level, uint32_t tick, void* userData){
             if (level != 1){ // If not a change to a rising edge

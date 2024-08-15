@@ -1,4 +1,5 @@
 #include "MasterMind.h"
+//TODO: Handle failed returns properly
 
 MasterMind::MasterMind(){};
 MasterMind::~MasterMind(){};
@@ -53,6 +54,10 @@ int MasterMind::run(){
     while (true){
 #if !DISABLE_LIDAR
         m_lidar.main();
+#endif
+
+#if !DISABLE_CAR
+        m_car.computeOdometry();
 #endif
 
 #if !DISABLE_SLAM
