@@ -65,6 +65,7 @@ int Lidar::scan(){
     return EXIT_FAILURE;
 }
 
+#if DISPLAY_LIDAR_READINGS
 void Lidar::displayLidarData(){
     Mat image = Mat::zeros(800, 800, CV_8UC3);
     Point center = Point(400, 400);
@@ -81,7 +82,9 @@ void Lidar::displayLidarData(){
     waitKey(1);
     return;
 }
+#endif 
 
+#if DUMP_LIDAR_READINGS
 void Lidar::dumpLidarReadings(){
     std::ofstream outFile("LidarDump.txt", std::ios::app);
 
@@ -101,6 +104,7 @@ void Lidar::dumpLidarReadings(){
     // Close the file
     outFile.close();
 }
+#endif
 
 void Lidar::main(){
     if (scan() == EXIT_FAILURE){

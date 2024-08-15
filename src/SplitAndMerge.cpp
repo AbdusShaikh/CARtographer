@@ -51,6 +51,7 @@ float SplitAndMerge::pointToLineDist(scanDot linePoint1, scanDot linePoint2, sca
 /*
 Visualization function to display the lines extracted by the algorithm
 */
+#if DISPLAY_EXTRACTED_LINES_SPLITANDMERGE
 void SplitAndMerge::displayExtractedLines(vector<vector<scanDot>> mergedSegments){
     int screenWidth = 800;
     int screenHeight = 800;
@@ -72,6 +73,7 @@ void SplitAndMerge::displayExtractedLines(vector<vector<scanDot>> mergedSegments
     cv::waitKey(1);
     return;
 }
+#endif
 
 /*
 Take 'rawPoints' and seperate it into a vector of vectors where each inner vector is a set of points that can have a 
