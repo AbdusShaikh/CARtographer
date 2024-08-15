@@ -21,7 +21,7 @@ class EkfSlam {
         void predictCovarianceMat();
         // Update step helpfer functions
         void updateMeasurementJacobian(int currLandmarkIdx, float rX, float rY, float lX, float lY, float expectedRange);
-        bool associateLandmark(int currLandmarkIdx);
+        bool associateLandmark(float expectedRange, float expectedTheta);
         // Utility functions
         void robotToWorldCoord(float* worldR, float* worldTheta, float robotR, float robotTheta);
         void worldToRobotCoord(float* robotR, float* robotTheta, float worldR, float worldTheta);
@@ -48,8 +48,9 @@ class EkfSlam {
 
         // Scalar values
         float m_odometryError;
-        float m_measurementNoiseRange;
-        float m_measurementNoiseBearing;
+        float m_RangeError;
+        float m_BearingError;
+        float m_associationGate;
 
         // Extermanl input
         OdometryDataContainer m_controlInputs;

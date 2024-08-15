@@ -56,9 +56,9 @@ int EkfSlam::init(){
     measurementNoise_R = Mat::zeros(2, 2, CV_32F);
     identity_V = Mat::eye(2,2, CV_32F);
 
-    m_odometryError = 0.0f;
-    m_measurementNoiseRange = 0.0f;
-    m_measurementNoiseBearing = 0.0f;
+    m_odometryError = 0.01f;
+    m_RangeError = 0.01f;
+    m_BearingError = 0.01f;
 
     return EXIT_SUCCESS;
 }
@@ -125,14 +125,14 @@ void EkfSlam::update(){
 
         // 3.) Update measurement noise matrix R
         //TODO: Find proper noise measurements
-        measurementNoise_R.at<float>(0,0) = m_measurementNoiseRange * expectedRange;
-        measurementNoise_R.at<float>(1,1) = m_measurementNoiseBearing * expectedBearing;
+        measurementNoise_R.at<float>(0,0) = m_RangeError * expectedRange;
+        measurementNoise_R.at<float>(1,1) = m_BearingError * expectedBearing;
 
         // 4.) Compute innovation covariance S
         innovationCovariance_S = (measurementJacobian_H * predictedCovariance_P * measurementJacobian_H.t()) + (identity_V * measurementNoise_R * identity_V.t());
         
         // 5.) Find associated landmark
-        if (!associateLandmark(i)){ // Failed to find this previously observed landmark in current reading. We want to only update reobserved landmarks
+        if (!associateLandmark(expectedRange, expectedBearing)){ // Failed to find this previously observed landmark in current reading. We want to only update reobserved landmarks
             continue;
         }
         // 6.) Compute Kalman Gain
@@ -155,8 +155,8 @@ void EkfSlam::update(){
 // Dynamicallly grow state vector (AKA The Map) based on observations
 void EkfSlam::addNewLandmarks(){
     vector<scanDot> newLandmarks; // DUMMY VECTOR
-    float robotX = trueState_x.at<float>(0,0);
-    float robotY = trueState_x.at<float>(1,0);
+    // float robotX = trueState_x.at<float>(0,0);
+    // float robotY = trueState_x.at<float>(1,0);
     float robotTheta = trueState_x.at<float>(2,0);
 
     for (int i = 0; i < (int) newLandmarks.size(); i++){
@@ -164,8 +164,8 @@ void EkfSlam::addNewLandmarks(){
         float landmarkR = newLandmarks[i].dist;
         float landmarkTheta = newLandmarks[i].angle;
         float globalTheta = robotTheta + landmarkTheta;
-        float globalX = robotX + (landmarkR * cos(globalTheta));
-        float globalY = robotY + (landmarkR * sin(globalTheta));
+        // float globalX = robotX + (landmarkR * cos(globalTheta));
+        // float globalY = robotY + (landmarkR * sin(globalTheta));
         
         float cosGlobalTheta = cos(globalTheta);
         float sinGlobalTheta = sin(globalTheta);
@@ -182,14 +182,31 @@ void EkfSlam::addNewLandmarks(){
         invMeasurementLandmarkJacobian.at<float>(1,0) = sinGlobalTheta;
         invMeasurementLandmarkJacobian.at<float>(1,1) = landmarkR * cosGlobalTheta;
 
-        measurementNoise_R.at<float>(0,0) = m_measurementNoiseRange * landmarkR;
-        measurementNoise_R.at<float>(1,1) = m_measurementNoiseBearing * landmarkTheta;
+        measurementNoise_R.at<float>(0,0) = m_RangeError * landmarkR;
+        measurementNoise_R.at<float>(1,1) = m_BearingError * landmarkTheta;
 
         // Calculate new covariance submatrix and crossvariance vectors
-        Mat newLandmarkCovariance = (invMeasurementPoseJacobian * trueCovariance_P(cv::Rect(0, 0, 3, 3)) * invMeasurementPoseJacobian.t()) + (invMeasurementLandmarkJacobian * measurementNoise_R * invMeasurementLandmarkJacobian.t());
-        Mat newLandmarkCrossVariance = invMeasurementPoseJacobian *  trueCovariance_P(cv::Rect(0, 0, trueCovariance_P.cols, 3));
+        Mat newLandmarkCovariance = (invMeasurementPoseJacobian * trueCovariance_P(Rect(0, 0, 3, 3)) * invMeasurementPoseJacobian.t()) + (invMeasurementLandmarkJacobian * measurementNoise_R * invMeasurementLandmarkJacobian.t());
+        Mat newLandmarkCrossVariance = invMeasurementPoseJacobian *  trueCovariance_P(Rect(0, 0, trueCovariance_P.cols, 3));
 
         // Add new landmark to state vector and its co and cross variances to the covariance matrix
+        int prevRows = trueCovariance_P.rows, prevCols = trueCovariance_P.cols;
+        // Create a new matrix with 2 more rows and columns as the previous covariance matrix
+        Mat newCovariance_P = Mat::zeros(prevRows + 2, prevCols + 2, CV_32F);
+        // Copy the old matrix to this new one in the top left
+        trueCovariance_P.copyTo(newCovariance_P(Rect(0, 0, prevCols, prevRows)));
+        // Create the cross-variances for this new landmark and all previous state elements
+        newCovariance_P(Rect(0,prevRows, prevCols, 2)) = newLandmarkCrossVariance;
+        newCovariance_P(Rect(prevCols, 0, 2, prevRows)) = newLandmarkCovariance.t();
+        // Add the covariance for this new landmark
+        newCovariance_P(Rect(prevCols, prevRows, 2, 2)) = newLandmarkCovariance;
+
+        trueCovariance_P = newCovariance_P;
+
+        // Add this landmark to the state vector
+        trueState_x.push_back(landmarkR);
+        trueState_x.push_back(landmarkTheta);
+
     }
 }
 // --------------------------
@@ -213,8 +230,8 @@ void EkfSlam::predictStateVec(float predictedX, float predictedY, float predicte
 void EkfSlam::updateProcessNoise(float dx_mm, float dy_mm, float dTheta){
     Mat W = Mat(3,1, CV_32F, {dx_mm, dy_mm, dTheta});
     // 3x3 matrix with odometryError on the diagnol
-    Mat C = Mat::eye(3,3, CV_32F) * Mat(3,1, CV_32F, {m_odometryError, m_odometryError, m_odometryError});
-    processNoise_Q = W * C * W.t();
+    // Mat C = m_odometryError * Mat::eye(3,3, CV_32F);
+    processNoise_Q = W * m_odometryError * W.t();
 }
 
 // Update robot pose covariance and robot to feature correlations
@@ -267,11 +284,34 @@ void EkfSlam::updateMeasurementJacobian(int currLandmarkIdx, float rX, float rY,
     measurementJacobian_H.at<float>(1, currLandmarkIdx + 1) = -E;
 }
 
-bool EkfSlam::associateLandmark(int currLandmarkIdx){
+// Find the closest incoming landmark by euclidean distance and pass it through a validation gate.
+bool EkfSlam::associateLandmark(float expectedRange, float expectedTheta){
+    float minDist = INFINITY;
+    int bestIdx = -1;
+    for (int i = 0; i < (int) m_measurements.size(); i++){
+        float currRange = m_measurements[i].dist;
+        float currTheta = m_measurements[i].angle;
+        float d = sqrt((currRange * currRange) + (expectedRange * expectedRange) - (2 * currRange * expectedRange * cos(currTheta - expectedTheta)));
+        if (d < minDist){
+            minDist = d;
+            bestIdx = i;
+        }
+    }
+    if (minDist > INFINITY){
+        float bestRange = m_measurements[bestIdx].dist;
+        float bestTheta = m_measurements[bestIdx].angle;
+        Mat innovation = Mat(2, 1, CV_32F);
+        innovation.at<float>(0, 0) = (bestRange - expectedRange);
+        innovation.at<float>(1, 0) = (bestTheta - expectedTheta);
+
+        Mat innovationDist = innovation.t() * innovationCovariance_S.inv() * innovation;
+        // Validation gate
+        if (innovationDist.at<float>(0,0) <= m_associationGate){
+            associatedLandmark_z.at<float>(0,0) = bestRange;
+            associatedLandmark_z.at<float>(1,0) = bestTheta;
+            return true;
+        }
+
+    }
     return false;
 }
-
-// -----------------
-// Utility functions
-// -----------------
-
