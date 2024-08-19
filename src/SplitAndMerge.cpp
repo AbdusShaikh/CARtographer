@@ -64,9 +64,9 @@ void SplitAndMerge::displayExtractedLines(vector<vector<scanDot>> mergedSegments
         scanDot lineEnd = mergedSegments[i].back();
         if (!lineStart.dist || !lineEnd.dist) continue;
 
-        int scaleFactor = 20;
-        Point lineStartCartesian = Point(center.x + ((lineStart.dist / scaleFactor) * cos(lineStart.angle)), center.y - ((lineStart.dist / scaleFactor) * sin(lineStart.angle)));
-        Point lineEndCartesian = Point(center.x + ((lineEnd.dist / scaleFactor) * cos(lineEnd.angle)), center.y - ((lineEnd.dist / scaleFactor) * sin(lineEnd.angle)));
+        // int scaleFactor = 20;
+        Point lineStartCartesian = Point(center.x + ((lineStart.dist / DISPLAY_SCALE) * cos(lineStart.angle)), center.y - ((lineStart.dist / DISPLAY_SCALE) * sin(lineStart.angle)));
+        Point lineEndCartesian = Point(center.x + ((lineEnd.dist / DISPLAY_SCALE) * cos(lineEnd.angle)), center.y - ((lineEnd.dist / DISPLAY_SCALE) * sin(lineEnd.angle)));
         cv::line(image, lineStartCartesian, lineEndCartesian, Scalar(0,255,0), 2);
     }
     cv::imshow("Extracted Lidar lines", image);

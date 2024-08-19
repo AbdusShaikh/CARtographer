@@ -8,6 +8,8 @@
 #include <vector>
 #include <assert.h>
 
+#define DISPLAY_SCALE 30
+
 using namespace std;
 
 // Single Lidar point struct

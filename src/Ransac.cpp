@@ -14,7 +14,7 @@ void Ransac::init(const vector<scanDot> lidarPoints){
     initialSampleCount = 30;
     maxDistToLine = 7.0f; // mm
     minLinePointCount = 75.0f;
-    landmarkMergeThreshold = 20.0f;
+    landmarkMergeThreshold = 35.0f;
 
     m_unassociatedPoints.clear();
     m_associatedPoints.clear();
@@ -220,16 +220,16 @@ void Ransac::displayExtractedLines(){
     Scalar red = Scalar(0,0,255);
     circle(image, center, 5, green);
 
-    int scaleFactor = 20;
+    // int scaleFactor = 20;
     for (int i = 0; i < (int) m_extractedLines.size(); i++){
         // --- Display line ---
         // ax + by + c = 0
         // y = -(ax + b) / b
         Line currLine = m_extractedLines[i];
         float x1 = image.cols;
-        float y1 = -((currLine.a * x1) + (currLine.c / scaleFactor)) / currLine.b;
+        float y1 = -((currLine.a * x1) + (currLine.c / DISPLAY_SCALE)) / currLine.b;
         float x2 = -image.cols;
-        float y2 = -((currLine.a * x2) + (currLine.c / scaleFactor)) / currLine.b;
+        float y2 = -((currLine.a * x2) + (currLine.c / DISPLAY_SCALE)) / currLine.b;
 
         Point displayPoint1 = Point(center.x + x1, center.y - y1);
         Point displayPoint2 = Point(center.x + x2, center.y - y2);
@@ -241,7 +241,7 @@ void Ransac::displayExtractedLines(){
         float x = currLandmark.dist * cos(currLandmark.angle);
         float y = currLandmark.dist * sin(currLandmark.angle);
 
-        Point displayPoint = Point(center.x + (x / scaleFactor), center.y - (y / scaleFactor));
+        Point displayPoint = Point(center.x + (x / DISPLAY_SCALE), center.y - (y / DISPLAY_SCALE));
         circle(image, displayPoint, 3, red, 2);
     }
     imshow("RANSAC", image);

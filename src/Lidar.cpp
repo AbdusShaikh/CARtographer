@@ -70,11 +70,11 @@ void Lidar::displayLidarData(){
     Mat image = Mat::zeros(800, 800, CV_8UC3);
     Point center = Point(400, 400);
     circle(image, center, 5, Scalar(0, 255,0));
-    int scaleFactor = 20;
+    // int scaleFactor = 20;
     for (int i = 0; i < (int) m_nodes.size(); i++){
         scanDot currNode = m_nodes[i];
         if (!currNode.dist) continue;
-        Point cartesianPoint = Point(center.x + ((currNode.dist / scaleFactor) * cos(currNode.angle)), center.y - ((currNode.dist / scaleFactor) * sin(currNode.angle)));
+        Point cartesianPoint = Point(center.x + ((currNode.dist / DISPLAY_SCALE) * cos(currNode.angle)), center.y - ((currNode.dist / DISPLAY_SCALE) * sin(currNode.angle)));
         Scalar pointColour = Scalar(255, 0, 0);
         circle(image, cartesianPoint, 3, pointColour, 2);
     }
