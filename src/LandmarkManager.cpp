@@ -3,8 +3,8 @@
 LandmarkManager::LandmarkManager(){};
 LandmarkManager::~LandmarkManager(){};
 
-vector<scanDot> LandmarkManager::step(vector<scanDot> measurements, float distTravelled){
-    load(measurements, distTravelled);
+vector<scanDot> LandmarkManager::step(vector<scanDot> measurements, float predictedX, float predictedY, float predictedTheta){
+    load(measurements, predictedX, predictedY, predictedTheta);
     updateStatuses();
     return goodLandmarks;
 }
@@ -12,21 +12,26 @@ vector<scanDot> LandmarkManager::step(vector<scanDot> measurements, float distTr
 // TODO: Use predicted points to compare with incoming measurements
 
 // Process new measurements to associate them with previously seen landmarks or create new ones
-void LandmarkManager::load(vector<scanDot> measurements, float distTravelled){
+void LandmarkManager::load(vector<scanDot> measurements, float predictedX, float predictedY, float predictedTheta){
     // Does this landmark already exist?
     //  - If yes: increase observation count
     //  - If no: Initialize new landmark
     for (int i = 0; i < (int) measurements.size(); i++){
         float r1 = measurements[i].dist;
         float t1 = measurements[i].angle;
-        float bestDist = INFINITY;
         float bestMahDist = INFINITY; // Mahalanobis Distance
         float bestIdx = -1;
         for (int j = 0; j < (int) observedLandmarks.size(); j++){
             float r2 = observedLandmarks[j].point.dist;
             float t2 = observedLandmarks[j].point.angle;
+
+            float xDiff = (r2 * cos(t2)) - predictedX;
+            float yDiff = (r2 * sin(t2)) - predictedY;
+            float expectedRange = sqrt((xDiff * xDiff) + (yDiff * yDiff)); // Expected landmark range based on the predicted pose
+            float expectedBearing = atan2(yDiff, xDiff) - predictedTheta; // Expected landmark bearing based on the predicted pose
+            
             // TODO: REMOVE HARDCODED VALUES
-            float mahDist = sqrt((((r2 - r1) * (r2 - r1)) / 135.48) + (((t2 - t1) * (t2 - t1)) / 1.79e-5) );
+            float mahDist = sqrt((((expectedRange - r1) * (expectedRange - r1)) / 135.48) + (((expectedBearing - t1) * (expectedBearing - t1)) / 1.79e-5) );
             if (mahDist < bestMahDist){
                 bestMahDist = mahDist;
                 bestIdx = j;

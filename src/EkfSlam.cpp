@@ -41,7 +41,7 @@
 //              - Right column: P_lx^T (cross variance but in column form)
 //              - Bottom right corner: P_ll (co-variance matrix of new landmark)
 //TODO:
-//  - SPEED
+//  - SPEED UP
 
 
 EkfSlam::EkfSlam(){};
@@ -101,7 +101,7 @@ void EkfSlam::predict(){
 
     predictCovarianceMat();
 
-    m_goodMeasurements = m_landmarkManager.step(m_rawMeasurements, avgDistTravelled_mm);
+    m_goodMeasurements = m_landmarkManager.step(m_rawMeasurements, currX + dx_mm, currY + dy_mm, currTheta + dTheta);
  }
 
 // Update step of Kalman Filtering
@@ -126,7 +126,6 @@ void EkfSlam::update(){
         updateMeasurementJacobian(i, rX, rY, lX, lY, expectedRange);
 
         // 3.) Update measurement noise matrix R
-        //TODO: Find proper noise measurements
         measurementNoise_R.at<float>(0,0) = m_RangeVariance * expectedRange;
         measurementNoise_R.at<float>(1,1) = m_BearingVariance * expectedBearing;
 

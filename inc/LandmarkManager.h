@@ -22,8 +22,8 @@ class LandmarkManager {
     public:
         LandmarkManager();
         ~LandmarkManager();
-        vector<scanDot> step(vector<scanDot> measurements, float distTravelled);
-        void load(vector<scanDot> measurements, float distTravelled);
+        vector<scanDot> step(vector<scanDot> measurements, float predictedX, float predictedY, float predictedTheta);
+        void load(vector<scanDot> measurements, float predictedX, float predictedY, float predictedTheta);
         void updateStatuses();
 
     private:
