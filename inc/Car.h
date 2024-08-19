@@ -33,6 +33,7 @@ class Car{
         int init(OdometryDataContainer *odometryDeposit);
         int uninit();
         int drive(int speed, float ang);
+        void remoteDrive(char command);
         void computeOdometry();
         void test();
         void main();
@@ -72,7 +73,8 @@ class Car{
         carPinConfig m_pinConfig;
         carDimensions m_carDimensions;
         OdometryDataContainer *m_odometry;
-        float m_dutyCycle = 255.0f;
+        // TODO: Organize
+        float m_dutyCycle = 100.0f;
         float m_leftWheelTicks = 0.0f; // Number of left wheel encoder ticks since last timestep
         float m_rightWheelTicks = 0.0f; // Number of right wheel encoder ticks since last timestep
 };

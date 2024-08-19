@@ -3,6 +3,9 @@
 #include "Lidar.h"
 #include "EkfSlam.h"
 
+#include <ncurses.h>
+
+
 #define DISABLE_LIDAR 0
 #define DISABLE_CAR 0
 #define DISABLE_SLAM 0

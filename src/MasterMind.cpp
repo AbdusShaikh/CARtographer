@@ -15,18 +15,21 @@ int MasterMind::init()
 
 #if !DISABLE_CAR
     if (m_car.init(&m_observations.odometry) == EXIT_FAILURE) {
-        printf("MasterMind]: Failed to initialize Car. Exiting program\n");
+        printf("[MasterMind]: Failed to initialize Car. Exiting program\n");
         // exit(1);
         return EXIT_FAILURE;
     };
+    initscr();           // Start ncurses mode
+    timeout(10);        // Set timeout for getch() in milliseconds
 #endif
 
 #if !DISABLE_SLAM
     if(slamAlgo.init() == EXIT_FAILURE){
-        printf("MasterMind]: Failed to initialize SLAM. Exiting program\n");
+        printf("[MasterMind]: Failed to initialize SLAM. Exiting program\n");
         return EXIT_FAILURE;
     }
 #endif
+
     return EXIT_SUCCESS;
 
 }
@@ -56,7 +59,15 @@ int MasterMind::run(){
 #endif
 
 #if !DISABLE_CAR
-        m_car.computeOdometry();
+    int ch = getch();  // Get the input from the keyboard, non-blocking
+    char command;
+    if (ch != ERR) {
+        command = ch;
+    } else {
+        command = ' ';  // Use default command if no input
+    }
+    m_car.remoteDrive(command);
+    m_car.computeOdometry();
 #endif
 
 #if !DISABLE_SLAM

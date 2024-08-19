@@ -83,6 +83,46 @@ int Car::drive(int speed, float ang){
     return EXIT_SUCCESS;
 }
 
+void Car::remoteDrive(char command){
+    switch (command){
+        // Forward
+        case 'w':
+            gpioWrite(m_pinConfig.lFWheel, 1);
+            gpioWrite(m_pinConfig.rFWheel, 1);
+            gpioWrite(m_pinConfig.lBWheel, 0);
+            gpioWrite(m_pinConfig.rBWheel, 0);
+            break;
+        // Left
+        case 'a':
+            gpioWrite(m_pinConfig.lFWheel, 0);
+            gpioWrite(m_pinConfig.rFWheel, 1);
+            gpioWrite(m_pinConfig.lBWheel, 1);
+            gpioWrite(m_pinConfig.rBWheel, 0);
+            break;
+        // Backward
+        case 's':
+            gpioWrite(m_pinConfig.lFWheel, 0);
+            gpioWrite(m_pinConfig.rFWheel, 0);
+            gpioWrite(m_pinConfig.lBWheel, 1);
+            gpioWrite(m_pinConfig.rBWheel, 1);
+            break;
+        // Right
+        case 'd':
+            gpioWrite(m_pinConfig.lFWheel, 1);
+            gpioWrite(m_pinConfig.rFWheel, 0);
+            gpioWrite(m_pinConfig.lBWheel, 0);
+            gpioWrite(m_pinConfig.rBWheel, 1);
+            break;
+        // Stand still
+        default:
+            gpioWrite(m_pinConfig.lFWheel, 0);
+            gpioWrite(m_pinConfig.rFWheel, 0);
+            gpioWrite(m_pinConfig.lBWheel, 0);
+            gpioWrite(m_pinConfig.rBWheel, 0);
+            break;
+    }
+}
+
 // Vehicle odometry calculations based on slide 13 from this presentation
 // https://courses.edx.org/asset-v1:ETHx+AMRx+2T2020+type@asset+block/AMR_Chli_SLAM_aSLAMproblem.pdf
 void Car::computeOdometry(){
