@@ -1,6 +1,5 @@
 #include "MasterMind.h"
-//TODO: Handle failed returns properly
-
+//TODO: Handle shutdown properly
 MasterMind::MasterMind(){};
 MasterMind::~MasterMind(){};
 
@@ -73,7 +72,10 @@ int MasterMind::run(){
 
 int main(){
     MasterMind masterMind;
-    masterMind.init();
+    if (masterMind.init() == EXIT_FAILURE){
+        exit(EXIT_FAILURE);
+    };
     masterMind.run();
+    masterMind.uninit();
     return EXIT_SUCCESS;
 };
