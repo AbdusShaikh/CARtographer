@@ -1,5 +1,6 @@
 #include <opencv2/core.hpp>
 #include "common.h"
+#include "LandmarkManager.h"
 
 using namespace cv;
 
@@ -23,15 +24,12 @@ class EkfSlam {
         void updateMeasurementJacobian(int currLandmarkIdx, float rX, float rY, float lX, float lY, float expectedRange);
         bool associateLandmark(float expectedRange, float expectedTheta);
         // Utility functions
-        void robotToWorldCoord(float* worldR, float* worldTheta, float robotR, float robotTheta);
-        void worldToRobotCoord(float* robotR, float* robotTheta, float worldR, float worldTheta);
+        // void robotToWorldCoord(float* worldR, float* worldTheta, float robotR, float robotTheta);
+        // void worldToRobotCoord(float* robotR, float* robotTheta, float worldR, float worldTheta);
 
         // Matrices
-        // Mat stateTransition_F;
         Mat stateTransitionJacobian_A;
-        // Mat control_G;
-        Mat predictedCovariance_P;
-        Mat trueCovariance_P;
+        Mat covariance_P;
         Mat processNoise_Q;
         Mat measurementNoise_R;
         Mat measurementJacobian_H;
@@ -41,18 +39,20 @@ class EkfSlam {
 
         // Vectors
         // State vectors (Robot pose and landmark position)
-        Mat predictedState_x;
-        Mat trueState_x;
+        Mat state_x;
         Mat associatedLandmark_z;
 
 
         // Scalar values
         float m_odometryError;
-        float m_RangeError;
-        float m_BearingError;
+        float m_RangeVariance;
+        float m_BearingVariance;
         float m_associationGate;
 
         // Extermanl input
         OdometryDataContainer m_controlInputs;
-        vector<scanDot> m_measurements; 
+        vector<scanDot> m_rawMeasurements;
+        vector<scanDot> m_goodMeasurements; 
+
+        LandmarkManager m_landmarkManager;
 };

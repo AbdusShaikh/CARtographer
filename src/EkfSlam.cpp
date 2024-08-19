@@ -1,6 +1,4 @@
 #include "EkfSlam.h"
-EkfSlam::EkfSlam(){};
-EkfSlam::~EkfSlam(){};
 // STEPS:
 //  Predict:
 //      - Predict robot pose based on prediction model using wheel encoder outputs (control terms)
@@ -42,23 +40,25 @@ EkfSlam::~EkfSlam(){};
 //              - Bottom row: P_lx (cross variance between new landmark and other state elements)
 //              - Right column: P_lx^T (cross variance but in column form)
 //              - Bottom right corner: P_ll (co-variance matrix of new landmark)
-
-
 //TODO:
-// Initialize all matrices and vectors
+//  - SPEED
+
+
+EkfSlam::EkfSlam(){};
+EkfSlam::~EkfSlam(){};
+
 int EkfSlam::init(){
-    trueState_x = Mat(3, 1, CV_32F, {0, 0, 0 }); // Initial robot pose is at "origin"
-    predictedState_x = Mat(3, 1, CV_32F, {0, 0, 0 }); // Initial robot pose is at "origin"
-
-    trueCovariance_P = Mat::zeros(3,3, CV_32F);
-    predictedCovariance_P = Mat::zeros(3,3, CV_32F);
-
+    state_x = Mat(3, 1, CV_32F, {0, 0, 0 }); // Initial robot pose is at "origin"
+    covariance_P = Mat::zeros(3,3, CV_32F);
     measurementNoise_R = Mat::zeros(2, 2, CV_32F);
     identity_V = Mat::eye(2,2, CV_32F);
+    associatedLandmark_z = Mat::zeros(2, 1, CV_32F);
 
+    m_associationGate = 15.0f;
     m_odometryError = 0.01f;
-    m_RangeError = 0.01f;
-    m_BearingError = 0.01f;
+    // Empirically calculated
+    m_RangeVariance = 135.48f;
+    m_BearingVariance = 1.79e-5f;
 
     return EXIT_SUCCESS;
 }
@@ -67,14 +67,14 @@ int EkfSlam::init(){
 // Main Algorithm functions
 // ------------------------
 
-// "Main" function of Kalman Filter. Executed predict and update steps
+// "Main" function of Kalman Filter. Executes predict and update steps
 Mat EkfSlam::step(vector<scanDot> measurements, OdometryDataContainer controlInputs){
     m_controlInputs = controlInputs;
-    m_measurements = measurements;
+    m_rawMeasurements = measurements;
     predict();
     update();
     addNewLandmarks();
-    return trueState_x;
+    return state_x;
 }
 
 // Predict step of Kalman Filtering
@@ -83,9 +83,9 @@ void EkfSlam::predict(){
     float carWheelBase = m_controlInputs.carWheelBase;
     float lDist_mm = m_controlInputs.leftWheelDist;
     float rDist_mm = m_controlInputs.rightWheelDist;
-    float currX = trueState_x.at<float>(0,0);
-    float currY = trueState_x.at<float>(1,0);
-    float currTheta = trueState_x.at<float>(2,0);
+    float currX = state_x.at<float>(0,0);
+    float currY = state_x.at<float>(1,0);
+    float currTheta = state_x.at<float>(2,0);
 
 
     float avgDistTravelled_mm = (lDist_mm + rDist_mm) / 2.0f;
@@ -100,19 +100,21 @@ void EkfSlam::predict(){
     updateProcessNoise(dx_mm, dy_mm, dTheta);
 
     predictCovarianceMat();
+
+    m_goodMeasurements = m_landmarkManager.step(m_rawMeasurements, avgDistTravelled_mm);
  }
 
 // Update step of Kalman Filtering
 void EkfSlam::update(){
-    for (int i = 3; i < predictedState_x.rows; i += 2){ // Landmarks start at row 3
+    for (int i = 3; i < state_x.rows; i += 2){ // Landmarks start at row 3
         // These values change as we update the state vector so we need to reinitialize them each tiem
-        float rX = predictedState_x.at<float>(0, 0);
-        float rY = predictedState_x.at<float>(1, 0);
-        float rTheta = predictedState_x.at<float>(1, 0);
+        float rX = state_x.at<float>(0, 0);
+        float rY = state_x.at<float>(1, 0);
+        float rTheta = state_x.at<float>(1, 0);
 
         // 1.) Calculate estimated position of landmark
-        float lX = predictedState_x.at<float>(i, 0); // Current landmark's x position in world coordinates
-        float lY = predictedState_x.at<float>(i + 1, 0); // landmark's y position in world coordinates
+        float lX = state_x.at<float>(i, 0); // Current landmark's x position in world coordinates
+        float lY = state_x.at<float>(i + 1, 0); // landmark's y position in world coordinates
         // Measurement model
         float xDiff = lX - rX;
         float yDiff = lY -rY;
@@ -125,23 +127,23 @@ void EkfSlam::update(){
 
         // 3.) Update measurement noise matrix R
         //TODO: Find proper noise measurements
-        measurementNoise_R.at<float>(0,0) = m_RangeError * expectedRange;
-        measurementNoise_R.at<float>(1,1) = m_BearingError * expectedBearing;
+        measurementNoise_R.at<float>(0,0) = m_RangeVariance * expectedRange;
+        measurementNoise_R.at<float>(1,1) = m_BearingVariance * expectedBearing;
 
         // 4.) Compute innovation covariance S
-        innovationCovariance_S = (measurementJacobian_H * predictedCovariance_P * measurementJacobian_H.t()) + (identity_V * measurementNoise_R * identity_V.t());
+        innovationCovariance_S = (measurementJacobian_H * covariance_P * measurementJacobian_H.t()) + (identity_V * measurementNoise_R * identity_V.t());
         
         // 5.) Find associated landmark
         if (!associateLandmark(expectedRange, expectedBearing)){ // Failed to find this previously observed landmark in current reading. We want to only update reobserved landmarks
             continue;
         }
         // 6.) Compute Kalman Gain
-        kalmanGain_K = predictedCovariance_P * measurementJacobian_H.t() * innovationCovariance_S.inv();
+        kalmanGain_K = covariance_P * measurementJacobian_H.t() * innovationCovariance_S.inv();
 
         // 7.) Update state
-        trueState_x = predictedState_x  + kalmanGain_K * (associatedLandmark_z - predictedLandmark_h);
+        state_x = state_x  + (kalmanGain_K * (associatedLandmark_z - predictedLandmark_h));
         // 8.) Update covariance
-        trueCovariance_P = predictedCovariance_P - (kalmanGain_K * innovationCovariance_S * kalmanGain_K.t());
+        covariance_P = covariance_P - (kalmanGain_K * innovationCovariance_S * kalmanGain_K.t());
         
 
     }
@@ -150,14 +152,13 @@ void EkfSlam::update(){
 
 // Dynamicallly grow state vector (AKA The Map) based on observations
 void EkfSlam::addNewLandmarks(){
-    float robotX = trueState_x.at<float>(0,0);
-    float robotY = trueState_x.at<float>(1,0);
-    float robotTheta = trueState_x.at<float>(2,0);
-    // TODO: NOT ALL MEASUREMENTS ARE NEW LANDMARKS. SEPERATE THEM.
-    for (int i = 0; i < (int) m_measurements.size(); i++){
+    float robotX = state_x.at<float>(0,0);
+    float robotY = state_x.at<float>(1,0);
+    float robotTheta = state_x.at<float>(2,0);
+    for (int i = 0; i < (int) m_goodMeasurements.size(); i++){
         // Convert landmark coordinates from robot frame to world frame ((robot_range, robot_bearing) -> (world_x, world_y))
-        float landmarkR = m_measurements[i].dist;
-        float landmarkTheta = m_measurements[i].angle;
+        float landmarkR = m_goodMeasurements[i].dist;
+        float landmarkTheta = m_goodMeasurements[i].angle;
         float globalTheta = robotTheta + landmarkTheta;
         float landmarkGlobalX = robotX + (landmarkR * cos(globalTheta));
         float landmarkGlobalY = robotY + (landmarkR * sin(globalTheta));
@@ -177,30 +178,30 @@ void EkfSlam::addNewLandmarks(){
         invMeasurementLandmarkJacobian.at<float>(1,0) = sinGlobalTheta;
         invMeasurementLandmarkJacobian.at<float>(1,1) = landmarkR * cosGlobalTheta;
 
-        measurementNoise_R.at<float>(0,0) = m_RangeError * landmarkR;
-        measurementNoise_R.at<float>(1,1) = m_BearingError * landmarkTheta;
+        measurementNoise_R.at<float>(0,0) = m_RangeVariance * landmarkR;
+        measurementNoise_R.at<float>(1,1) = m_BearingVariance * landmarkTheta;
 
         // Calculate new covariance submatrix and crossvariance vectors
-        Mat newLandmarkCovariance = (invMeasurementPoseJacobian * trueCovariance_P(Rect(0, 0, 3, 3)) * invMeasurementPoseJacobian.t()) + (invMeasurementLandmarkJacobian * measurementNoise_R * invMeasurementLandmarkJacobian.t());
-        Mat newLandmarkCrossVariance = invMeasurementPoseJacobian *  trueCovariance_P(Rect(0, 0, trueCovariance_P.cols, 3));
+        Mat newLandmarkCovariance = (invMeasurementPoseJacobian * covariance_P(Rect(0, 0, 3, 3)) * invMeasurementPoseJacobian.t()) + (invMeasurementLandmarkJacobian * measurementNoise_R * invMeasurementLandmarkJacobian.t());
+        Mat newLandmarkCrossVariance = invMeasurementPoseJacobian *  covariance_P(Rect(0, 0, covariance_P.cols, 3));
 
         // Add new landmark to state vector and its co and cross variances to the covariance matrix
-        int prevRows = trueCovariance_P.rows, prevCols = trueCovariance_P.cols;
+        int prevRows = covariance_P.rows, prevCols = covariance_P.cols;
         // Create a new matrix with 2 more rows and columns as the previous covariance matrix
         Mat newCovariance_P = Mat::zeros(prevRows + 2, prevCols + 2, CV_32F);
         // Copy the old matrix to this new one in the top left
-        trueCovariance_P.copyTo(newCovariance_P(Rect(0, 0, prevCols, prevRows)));
+        covariance_P.copyTo(newCovariance_P(Rect(0, 0, prevCols, prevRows)));
         // Create the cross-variances for this new landmark and all previous state elements
         newCovariance_P(Rect(0,prevRows, prevCols, 2)) = newLandmarkCrossVariance;
         newCovariance_P(Rect(prevCols, 0, 2, prevRows)) = newLandmarkCovariance.t();
         // Add the covariance for this new landmark
         newCovariance_P(Rect(prevCols, prevRows, 2, 2)) = newLandmarkCovariance;
 
-        trueCovariance_P = newCovariance_P;
+        covariance_P = newCovariance_P;
 
         // Add this landmark to the state vector
-        trueState_x.push_back(landmarkGlobalX);
-        trueState_x.push_back(landmarkGlobalY);
+        state_x.push_back(landmarkGlobalX);
+        state_x.push_back(landmarkGlobalY);
 
     }
 }
@@ -216,32 +217,29 @@ void EkfSlam::updateTransitionJacobian(float dx_mm, float dy_mm){
 }
 
 void EkfSlam::predictStateVec(float predictedX, float predictedY, float predictedTheta){
-    predictedState_x.at<float>(0,0) = predictedX;
-    predictedState_x.at<float>(1,0) = predictedY;
-    predictedState_x.at<float>(2,0) = predictedTheta;
+    state_x.at<float>(0,0) = predictedX;
+    state_x.at<float>(1,0) = predictedY;
+    state_x.at<float>(2,0) = predictedTheta;
 }
 
 //TODO: Find proper noise measurements
 void EkfSlam::updateProcessNoise(float dx_mm, float dy_mm, float dTheta){
     Mat W = Mat(3,1, CV_32F, {dx_mm, dy_mm, dTheta});
-    // 3x3 matrix with odometryError on the diagnol
-    // Mat C = m_odometryError * Mat::eye(3,3, CV_32F);
     processNoise_Q = W * m_odometryError * W.t();
 }
 
 // Update robot pose covariance and robot to feature correlations
 void EkfSlam::predictCovarianceMat(){
-    // Update the robot pose covariance submatrix
-    Mat predictedPoseCovariance = (stateTransitionJacobian_A * predictedCovariance_P(cv::Rect(0, 0, 3, 3)) *  stateTransitionJacobian_A.t()) + processNoise_Q;
-    predictedCovariance_P(cv::Rect(0, 0, 3, 3)) = predictedPoseCovariance;
+    Mat predictedPoseCovariance = (stateTransitionJacobian_A * covariance_P(cv::Rect(0, 0, 3, 3)) *  stateTransitionJacobian_A.t()) + processNoise_Q;
+    covariance_P(cv::Rect(0, 0, 3, 3)) = predictedPoseCovariance;
 
-    int covarianceCols = predictedCovariance_P.cols;
+    int covarianceCols = covariance_P.cols;
     if (covarianceCols > 3){
-        Mat updatedTop3Rows = predictedCovariance_P(cv::Rect(3, 0, covarianceCols, 3)) * stateTransitionJacobian_A;
-        predictedCovariance_P(cv::Rect(3, 0, covarianceCols, 3)) = updatedTop3Rows;
+        Mat updatedTop3Rows = stateTransitionJacobian_A * covariance_P(cv::Rect(3, 0, covarianceCols - 3, 3)) ;
+        covariance_P(cv::Rect(3, 0, covarianceCols - 3, 3)) = updatedTop3Rows;
 
         // May not be necessary (Maintain a triangular matrix)
-        predictedCovariance_P(cv::Rect(0, 3, 3, covarianceCols)) = updatedTop3Rows.t();
+        covariance_P(cv::Rect(0, 3, 3, covarianceCols - 3)) = updatedTop3Rows.t();
     }
 
 }
@@ -264,7 +262,7 @@ void EkfSlam::updateMeasurementJacobian(int currLandmarkIdx, float rX, float rY,
     float E = (lX - rX) / (expectedRange * expectedRange);
     float F = -1.0f;
 
-    measurementJacobian_H = Mat::zeros(2, predictedState_x.rows, CV_32F);
+    measurementJacobian_H = Mat::zeros(2, state_x.rows, CV_32F);
     // Set robot pose values
     measurementJacobian_H.at<float>(0,0) = A;
     measurementJacobian_H.at<float>(0,1) = B;
@@ -283,30 +281,31 @@ void EkfSlam::updateMeasurementJacobian(int currLandmarkIdx, float rX, float rY,
 bool EkfSlam::associateLandmark(float expectedRange, float expectedTheta){
     float minDist = INFINITY;
     int bestIdx = -1;
-    for (int i = 0; i < (int) m_measurements.size(); i++){
-        float currRange = m_measurements[i].dist;
-        float currTheta = m_measurements[i].angle;
+    for (int i = 0; i < (int) m_goodMeasurements.size(); i++){
+        float currRange = m_goodMeasurements[i].dist;
+        float currTheta = m_goodMeasurements[i].angle;
         float d = sqrt((currRange * currRange) + (expectedRange * expectedRange) - (2 * currRange * expectedRange * cos(currTheta - expectedTheta)));
         if (d < minDist){
             minDist = d;
             bestIdx = i;
         }
     }
-    if (minDist > INFINITY){
-        float bestRange = m_measurements[bestIdx].dist;
-        float bestTheta = m_measurements[bestIdx].angle;
+    if (minDist < INFINITY){
+        float bestRange = m_goodMeasurements[bestIdx].dist;
+        float bestTheta = m_goodMeasurements[bestIdx].angle;
         Mat innovation = Mat(2, 1, CV_32F);
         innovation.at<float>(0, 0) = (bestRange - expectedRange);
         innovation.at<float>(1, 0) = (bestTheta - expectedTheta);
 
         Mat innovationDist = innovation.t() * innovationCovariance_S.inv() * innovation;
         // Validation gate
-        if (innovationDist.at<float>(0,0) <= m_associationGate){
+        // if (innovationDist.at<float>(0,0) <= m_associationGate){
             associatedLandmark_z.at<float>(0,0) = bestRange;
             associatedLandmark_z.at<float>(1,0) = bestTheta;
+            swap(m_goodMeasurements[bestIdx], m_goodMeasurements.back());
+            m_goodMeasurements.pop_back();
             return true;
-        }
-
+        // }
     }
     return false;
 }
