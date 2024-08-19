@@ -49,7 +49,7 @@ class Car{
             int pinB = instance->m_pinConfig.leftEncoderB;
             // int* pulses = &instance->m_encoderReadings->leftWheel;
             float* pulses = &instance->m_leftWheelTicks;
-            int direction = 1; // Forward on right wheel is opposite to forward on left wheel
+            int direction = -1; // Forward on right wheel is opposite to forward on left wheel
             string debugOutput = "[Car:Encoder Pulses] Left ";
             // Switch to right side if that is what called this function.
             if (gpio == instance->m_pinConfig.rightEncoderA){
@@ -57,7 +57,7 @@ class Car{
                 pinB = instance->m_pinConfig.rightEncoderB;
                 // pulses = &instance->m_encoderReadings->rightWheel;
                 pulses = &instance->m_rightWheelTicks;
-                direction = -1; // Forward on right wheel is opposite to forward on left wheel
+                direction = 1; // Forward on right wheel is opposite to forward on left wheel
                 debugOutput = "[Car:Encoder Pulses] Right ";
             }
             if (gpioRead(pinA) != gpioRead(pinB)){
