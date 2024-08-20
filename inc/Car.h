@@ -11,10 +11,10 @@ struct carPinConfig{
     int rFWheel = 20;
     int rBWheel = 16;
 
-    int leftEncoderA = 18;
-    int leftEncoderB = 23;
-    int rightEncoderA = 14;
-    int rightEncoderB = 15;
+    int leftEncoderA = 15;
+    int leftEncoderB = 14;
+    int rightEncoderA = 23;
+    int rightEncoderB = 18;
 
 };
 
@@ -50,7 +50,7 @@ class Car{
             int pinB = instance->m_pinConfig.leftEncoderB;
             // int* pulses = &instance->m_encoderReadings->leftWheel;
             float* pulses = &instance->m_leftWheelTicks;
-            int direction = -1; // Forward on right wheel is opposite to forward on left wheel
+            int direction = 1; // Forward on right wheel is opposite to forward on left wheel
             string debugOutput = "[Car:Encoder Pulses] Left ";
             // Switch to right side if that is what called this function.
             if (gpio == instance->m_pinConfig.rightEncoderA){
