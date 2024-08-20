@@ -8,7 +8,7 @@
 #include <vector>
 #include <assert.h>
 
-#define DISPLAY_SCALE 30
+#define DISPLAY_SCALE 10
 
 using namespace std;
 
