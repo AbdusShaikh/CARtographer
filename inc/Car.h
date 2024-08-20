@@ -1,6 +1,7 @@
 #include <pigpio.h>
 #include <thread>
 #include "common.h"
+#define DEBUG_CAR 1
 
 struct carPinConfig{
     int enA = 21;
@@ -11,10 +12,10 @@ struct carPinConfig{
     int rFWheel = 20;
     int rBWheel = 16;
 
-    int leftEncoderA = 15;
-    int leftEncoderB = 14;
-    int rightEncoderA = 23;
-    int rightEncoderB = 18;
+    int leftEncoderA = 14;
+    int leftEncoderB = 15;
+    int rightEncoderA = 18;
+    int rightEncoderB = 23;
 
 };
 
@@ -58,7 +59,7 @@ class Car{
                 pinB = instance->m_pinConfig.rightEncoderB;
                 // pulses = &instance->m_encoderReadings->rightWheel;
                 pulses = &instance->m_rightWheelTicks;
-                direction = 1; // Forward on right wheel is opposite to forward on left wheel
+                direction = -1; // Forward on right wheel is opposite to forward on left wheel
                 debugOutput = "[Car:Encoder Pulses] Right ";
             }
             if (gpioRead(pinA) != gpioRead(pinB)){
@@ -66,8 +67,10 @@ class Car{
             } else {
                 (*pulses) -= 1 * direction; // B edge has already risen. B comes before A in counter clockwise motion
             }
+#if DEBUG_CAR
             debugOutput += to_string(*pulses) + "\n";
             printf("%s", debugOutput.c_str());
+#endif
 
         }
         carPinConfig m_pinConfig;
