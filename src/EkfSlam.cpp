@@ -101,7 +101,8 @@ void EkfSlam::predict(){
 
     predictCovarianceMat();
 
-    m_goodMeasurements = m_landmarkManager.step(m_rawMeasurements, currX + dx_mm, currY + dy_mm, currTheta + dTheta);
+    // m_goodMeasurements = m_landmarkManager.step(m_rawMeasurements, currX + dx_mm, currY + dy_mm, currTheta + dTheta);
+    manageLandmarks(m_rawMeasurements);
  }
 
 // Update step of Kalman Filtering
@@ -154,10 +155,10 @@ void EkfSlam::addNewLandmarks(){
     float robotX = state_x.at<float>(0,0);
     float robotY = state_x.at<float>(1,0);
     float robotTheta = state_x.at<float>(2,0);
-    for (int i = 0; i < (int) m_goodMeasurements.size(); i++){
+    for (int i = 0; i < (int) m_goodLandmarks.size(); i++){
         // Convert landmark coordinates from robot frame to world frame ((robot_range, robot_bearing) -> (world_x, world_y))
-        float landmarkR = m_goodMeasurements[i].dist;
-        float landmarkTheta = m_goodMeasurements[i].angle;
+        float landmarkR = m_goodLandmarks[i].dist;
+        float landmarkTheta = m_goodLandmarks[i].angle;
         float globalTheta = robotTheta + landmarkTheta;
         float landmarkGlobalX = robotX + (landmarkR * cos(globalTheta));
         float landmarkGlobalY = robotY + (landmarkR * sin(globalTheta));
@@ -276,13 +277,14 @@ void EkfSlam::updateMeasurementJacobian(int currLandmarkIdx, float rX, float rY,
     measurementJacobian_H.at<float>(1, currLandmarkIdx + 1) = -E;
 }
 
+// TODO: Handle when a previously observed landmark is not observed this time.
 // Find the closest incoming landmark by euclidean distance and pass it through a validation gate.
 bool EkfSlam::associateLandmark(float expectedRange, float expectedTheta){
     float minDist = INFINITY;
     int bestIdx = -1;
-    for (int i = 0; i < (int) m_goodMeasurements.size(); i++){
-        float currRange = m_goodMeasurements[i].dist;
-        float currTheta = m_goodMeasurements[i].angle;
+    for (int i = 0; i < (int) m_goodLandmarks.size(); i++){
+        float currRange = m_goodLandmarks[i].dist;
+        float currTheta = m_goodLandmarks[i].angle;
         float d = sqrt((currRange * currRange) + (expectedRange * expectedRange) - (2 * currRange * expectedRange * cos(currTheta - expectedTheta)));
         if (d < minDist){
             minDist = d;
@@ -290,8 +292,8 @@ bool EkfSlam::associateLandmark(float expectedRange, float expectedTheta){
         }
     }
     if (minDist < INFINITY){
-        float bestRange = m_goodMeasurements[bestIdx].dist;
-        float bestTheta = m_goodMeasurements[bestIdx].angle;
+        float bestRange = m_goodLandmarks[bestIdx].dist;
+        float bestTheta = m_goodLandmarks[bestIdx].angle;
         Mat innovation = Mat(2, 1, CV_32F);
         innovation.at<float>(0, 0) = (bestRange - expectedRange);
         innovation.at<float>(1, 0) = (bestTheta - expectedTheta);
@@ -301,10 +303,124 @@ bool EkfSlam::associateLandmark(float expectedRange, float expectedTheta){
         // if (innovationDist.at<float>(0,0) <= m_associationGate){
             associatedLandmark_z.at<float>(0,0) = bestRange;
             associatedLandmark_z.at<float>(1,0) = bestTheta;
-            swap(m_goodMeasurements[bestIdx], m_goodMeasurements.back());
-            m_goodMeasurements.pop_back();
+            swap(m_goodLandmarks[bestIdx], m_goodLandmarks.back());
+            m_goodLandmarks.pop_back();
             return true;
         // }
     }
     return false;
+}
+
+
+// --------------------------
+// Landmark management functions
+// --------------------------
+
+void EkfSlam::manageLandmarks(vector<scanDot> measurements){
+    loadLandmarks(measurements);
+    updateLandmarkStatus();
+}
+
+// Update observed landmarks database by updating re-observed landmarks and creating newly observed landmarks
+void EkfSlam::loadLandmarks(vector<scanDot> measurements){
+    // Does this landmark already exist?
+    //  - If yes: increase observation count
+    //  - If no: Initialize new landmark
+    float robotX = state_x.at<float>(0,0);
+    float robotY = state_x.at<float>(1,0);
+    float robotTheta = state_x.at<float>(2,0);
+
+    for (int i = 0; i < (int) measurements.size(); i++){
+        float measuredRange = measurements[i].dist;
+        float measuredBearing = measurements[i].angle;
+        float globalTheta = measuredBearing + robotTheta;
+        float measuredGlobalX = robotX + (measuredRange * cos(globalTheta));
+        float measuredGlobalY = robotY + (measuredRange * sin(globalTheta));
+        float bestMahDist = INFINITY; // Mahalanobis Distance
+        float bestIdx = -1;
+        for (int j = 0; j < (int) m_observedLandmarks.size(); j++){
+            // Observed landmarks are stored in global cartesian coordinates
+            // float expectedGlobalX = m_observedLandmarks[j].point.x;
+            // float expectedGlobalY = m_observedLandmarks[j].point.y;
+            float xDiff = m_observedLandmarks[j].point.x - robotX;
+            float yDiff = m_observedLandmarks[j].point.y - robotY;
+            float expectedBearing = atan2(yDiff, xDiff) - robotTheta;
+            float expectedRange = sqrt((xDiff * xDiff) + (yDiff * yDiff));
+
+            Mat innovation = Mat::zeros(2, 1, CV_32F);
+            innovation.at<float>(0,0) = measuredRange - expectedRange;
+            innovation.at<float>(1,0) = measuredBearing - expectedBearing;
+
+            Mat innovationCovariance = Mat::zeros(2,2, CV_32F);
+            innovationCovariance.at<float>(0,0) = m_RangeVariance;
+            innovationCovariance.at<float>(1,1) = m_BearingVariance;
+            Mat mahDistSqrd = innovation.t() * innovationCovariance.inv() * innovation;
+            assert(mahDistSqrd.rows == 1 && mahDistSqrd.cols == 1);
+            float mahDist = sqrt(mahDistSqrd.at<float>(0,0));
+
+            // float mahDist = sqrt((((expectedGlobalX - measuredGlobalX) * (expectedGlobalX - measuredGlobalX)) / m_RangeVariance) + (((expectedGlobalY - measuredGlobalY) * (expectedGlobalY - measuredGlobalY)) / m_BearingVariance) );    
+            if (mahDist < bestMahDist){
+                bestMahDist = mahDist;
+                bestIdx = j;
+            }
+
+        }
+        // Based on Chi-Square distribution thresholding values found here https://www.itl.nist.gov/div898/handbook/eda/section3/eda3674.htm
+        if (bestMahDist <= 4.6){ 
+            // Found association
+            // Convert local coords to global and update
+            m_observedLandmarks[bestIdx].point.x = measuredGlobalX;
+            m_observedLandmarks[bestIdx].point.y = measuredGlobalY;
+            m_observedLandmarks[bestIdx].recentlyObserved = true;
+
+        }
+        // No association found. Create a new landmark and add to observedLandmarks
+        else {
+            // Convert local coords to global
+            Landmark newLandmark;
+            newLandmark.observationCount = 0;
+            newLandmark.recentlyObserved = true;
+            newLandmark.status = unconfirmed;
+            newLandmark.point.x = measuredGlobalX;
+            newLandmark.point.y = measuredGlobalY;
+            m_observedLandmarks.push_back(newLandmark);
+
+        }
+    }
+}
+
+void EkfSlam::updateLandmarkStatus(){
+    m_goodLandmarks.clear();
+    float robotX = state_x.at<float>(0,0);
+    float robotY = state_x.at<float>(1,0);
+    float robotTheta = state_x.at<float>(2,0);
+
+    for (int i = 0; i < (int) m_observedLandmarks.size(); i++){
+        if (!m_observedLandmarks[i].recentlyObserved && m_observedLandmarks[i].status == unconfirmed){
+            m_observedLandmarks[i].observationCount --;
+            if (m_observedLandmarks[i].observationCount <= 0){
+                // Remove this landmark 
+                swap(m_observedLandmarks[i], m_observedLandmarks.back());
+                m_observedLandmarks.pop_back();
+            }
+        }
+        else {
+            // Convert global coords to local
+            m_observedLandmarks[i].observationCount ++;
+            m_observedLandmarks[i].recentlyObserved = false;
+            if (m_observedLandmarks[i].observationCount >= m_landmarkConfirmationCount){ 
+                m_observedLandmarks[i].status = confirmed;
+                // TODO: Can directly push global cartesian coord and avoid reconverting later
+                scanDot goodLandmark;
+                float landmarkX = m_observedLandmarks[i].point.x;
+                float landmarkY = m_observedLandmarks[i].point.y;
+                float xDiff = landmarkX - robotX;
+                float yDiff = landmarkY - robotY;
+                goodLandmark.angle = atan2(yDiff, xDiff) - robotTheta;
+                goodLandmark.dist = sqrt((xDiff * xDiff) + (yDiff * yDiff));
+            
+                m_goodLandmarks.push_back(goodLandmark);
+            }
+        }
+    }
 }

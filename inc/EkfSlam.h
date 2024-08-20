@@ -1,8 +1,19 @@
 #include <opencv2/core.hpp>
 #include "common.h"
-#include "LandmarkManager.h"
+// #include "LandmarkManager.h"
 
 using namespace cv;
+
+enum landmarkStatus{unconfirmed = 0, confirmed = 1};
+
+struct Landmark {
+    // scanDot point;
+    Point point;
+    int observationCount;
+    landmarkStatus status;
+    bool recentlyObserved;
+};
+
 
 class EkfSlam {
     public:
@@ -26,6 +37,10 @@ class EkfSlam {
         // Utility functions
         // void robotToWorldCoord(float* worldR, float* worldTheta, float robotR, float robotTheta);
         // void worldToRobotCoord(float* robotR, float* robotTheta, float worldR, float worldTheta);
+        // Feature/Landmark Management
+        void manageLandmarks(vector<scanDot> measurements);
+        void loadLandmarks(vector<scanDot> measurements);
+        void updateLandmarkStatus();
 
         // Matrices
         Mat stateTransitionJacobian_A;
@@ -52,7 +67,14 @@ class EkfSlam {
         // Extermanl input
         OdometryDataContainer m_controlInputs;
         vector<scanDot> m_rawMeasurements;
-        vector<scanDot> m_goodMeasurements; 
+        // vector<scanDot> m_goodMeasurements; 
 
-        LandmarkManager m_landmarkManager;
+        // LandmarkManager m_landmarkManager;
+
+        // Feature/Landmark Management
+        // Local Coords (Remade each iteration)
+        vector<scanDot> m_goodLandmarks;
+        // Global Coords (Maintained through iterations)
+        vector<Landmark> m_observedLandmarks;
+        int m_landmarkConfirmationCount = 30;
 };
