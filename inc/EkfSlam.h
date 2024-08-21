@@ -8,7 +8,7 @@ enum landmarkStatus{unconfirmed = 0, confirmed = 1};
 
 struct Landmark {
     // scanDot point;
-    Point point;
+    Point2f point;
     int observationCount;
     landmarkStatus status;
     bool recentlyObserved;
@@ -39,7 +39,8 @@ class EkfSlam {
         // void worldToRobotCoord(float* robotR, float* robotTheta, float worldR, float worldTheta);
         // Feature/Landmark Management
         void manageLandmarks(vector<scanDot> measurements);
-        void loadLandmarks(vector<scanDot> measurements);
+        void globalizeRobotLandmarks(vector<scanDot> measurements);
+        void loadLandmarks();
         void updateLandmarkStatus();
 
         // Matrices
@@ -76,5 +77,7 @@ class EkfSlam {
         vector<scanDot> m_goodLandmarks;
         // Global Coords (Maintained through iterations)
         vector<Landmark> m_observedLandmarks;
+        // Global Coord (Remade each iteration)
+        vector<Point2f> m_globalizedLandmarks;
         int m_landmarkConfirmationCount = 30;
 };

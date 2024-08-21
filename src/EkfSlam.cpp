@@ -151,6 +151,7 @@ void EkfSlam::update(){
 
 
 // Dynamicallly grow state vector (AKA The Map) based on observations
+//TODO: Use point closest to wall from origin as state features
 void EkfSlam::addNewLandmarks(){
     float robotX = state_x.at<float>(0,0);
     float robotY = state_x.at<float>(1,0);
@@ -294,11 +295,11 @@ bool EkfSlam::associateLandmark(float expectedRange, float expectedTheta){
     if (minDist < INFINITY){
         float bestRange = m_goodLandmarks[bestIdx].dist;
         float bestTheta = m_goodLandmarks[bestIdx].angle;
-        Mat innovation = Mat(2, 1, CV_32F);
-        innovation.at<float>(0, 0) = (bestRange - expectedRange);
-        innovation.at<float>(1, 0) = (bestTheta - expectedTheta);
+        // Mat innovation = Mat(2, 1, CV_32F);
+        // innovation.at<float>(0, 0) = (bestRange - expectedRange);
+        // innovation.at<float>(1, 0) = (bestTheta - expectedTheta);
 
-        Mat innovationDist = innovation.t() * innovationCovariance_S.inv() * innovation;
+        // Mat innovationDist = innovation.t() * innovationCovariance_S.inv() * innovation;
         // Validation gate
         // if (innovationDist.at<float>(0,0) <= m_associationGate){
             associatedLandmark_z.at<float>(0,0) = bestRange;
@@ -316,61 +317,96 @@ bool EkfSlam::associateLandmark(float expectedRange, float expectedTheta){
 // Landmark management functions
 // --------------------------
 
+// Checking if points closest to a walll are the same may or may not tell us if we are measuring the same wall
+// The point closest to the wall changes as the robot moves
+// The linse from the robot to the wall are parallel even as the robot moves
+// Check if the lines from the robot to the wall are parallel to associate walls and therefore landmarks.
+// Store the closest point from the origin to the wall in the state vector. This will be consistent throughout robot motion.
+// When we get a new measurement (point closest to wall from robot), find the line corresponding to that point, then find the point closest from the origin to that point
+// This will be relatively consistent throughout robot motion
+
 void EkfSlam::manageLandmarks(vector<scanDot> measurements){
-    loadLandmarks(measurements);
+    // Extract line out of points
+    // Find closest point on that line to global origin
+    globalizeRobotLandmarks(measurements);
+    loadLandmarks();
     updateLandmarkStatus();
 }
 
-// Update observed landmarks database by updating re-observed landmarks and creating newly observed landmarks
-void EkfSlam::loadLandmarks(vector<scanDot> measurements){
-    // Does this landmark already exist?
-    //  - If yes: increase observation count
-    //  - If no: Initialize new landmark
+// Measurements comes in as the point closest from a wall to the robot.
+// Find the point closest from this line to the origin
+void EkfSlam::globalizeRobotLandmarks(vector<scanDot> measurements){
+    m_globalizedLandmarks.clear();
     float robotX = state_x.at<float>(0,0);
     float robotY = state_x.at<float>(1,0);
     float robotTheta = state_x.at<float>(2,0);
 
     for (int i = 0; i < (int) measurements.size(); i++){
-        float measuredRange = measurements[i].dist;
-        float measuredBearing = measurements[i].angle;
-        float globalTheta = measuredBearing + robotTheta;
-        float measuredGlobalX = robotX + (measuredRange * cos(globalTheta));
-        float measuredGlobalY = robotY + (measuredRange * sin(globalTheta));
-        float bestMahDist = INFINITY; // Mahalanobis Distance
+        //TODO: Handle vertical line
+        float currDist = measurements[i].dist;
+        float currAng = measurements[i].angle;
+        float globalTheta = currAng + robotTheta;
+        // Calculate the slope of the line in global coordinates
+        float run = currDist * cos(globalTheta);
+        float rise = currDist * sin(globalTheta);
+        float slope = rise / run;
+
+        // Compute a single point in the line in global coordinates
+        float globalX = robotX + run;
+        float globalY = robotY + rise;
+
+        // Compute the line in global coordinates;
+        // y = mx + b
+        // 0 = mx + b - y
+        // 0 = Ax + By + C (A = m, B = -1, C = b)
+        float lineA = -1 / slope; // "slope" is the slope of the line from robot to wall. We want the line perpendicular to that.
+        float lineB = -1;
+        float lineC = globalY - (lineA * globalX);
+
+        // Find the point closest to the this line from the origin
+        float denom = (lineA * lineA) + (lineB * lineB);
+        float x = - (lineA * lineC) / denom;
+        float y = - (lineB * lineC) / denom;
+
+        m_globalizedLandmarks.push_back(Point2f(x, y));
+    }
+}
+
+// Update observed landmarks database by updating re-observed landmarks and creating newly observed landmarks
+void EkfSlam::loadLandmarks(){
+    // Does this landmark already exist?
+    //  - If yes: increase observation count
+    //  - If no: Initialize new landmark
+    // float robotX = state_x.at<float>(0,0);
+    // float robotY = state_x.at<float>(1,0);
+    // float robotTheta = state_x.at<float>(2,0);
+
+    for (int i = 0; i < (int) m_globalizedLandmarks.size(); i++){
+        float measuredX = m_globalizedLandmarks[i].x;
+        float measuredY = m_globalizedLandmarks[i].y;
+        // float bestMahDist = INFINITY; // Mahalanobis Distance
+        float bestDist = INFINITY;
         float bestIdx = -1;
         for (int j = 0; j < (int) m_observedLandmarks.size(); j++){
-            // Observed landmarks are stored in global cartesian coordinates
-            // float expectedGlobalX = m_observedLandmarks[j].point.x;
-            // float expectedGlobalY = m_observedLandmarks[j].point.y;
-            float xDiff = m_observedLandmarks[j].point.x - robotX;
-            float yDiff = m_observedLandmarks[j].point.y - robotY;
-            float expectedBearing = atan2(yDiff, xDiff) - robotTheta;
-            float expectedRange = sqrt((xDiff * xDiff) + (yDiff * yDiff));
+            float expectedX = m_observedLandmarks[j].point.x;
+            float expectedY = m_observedLandmarks[j].point.y;
+            float xDiff = measuredX - expectedX;
+            float yDiff = measuredY - expectedY;
 
-            Mat innovation = Mat::zeros(2, 1, CV_32F);
-            innovation.at<float>(0,0) = measuredRange - expectedRange;
-            innovation.at<float>(1,0) = measuredBearing - expectedBearing;
+            float dist = sqrt(((xDiff * xDiff) + (yDiff * yDiff)));
 
-            Mat innovationCovariance = Mat::zeros(2,2, CV_32F);
-            innovationCovariance.at<float>(0,0) = m_RangeVariance;
-            innovationCovariance.at<float>(1,1) = m_BearingVariance;
-            Mat mahDistSqrd = innovation.t() * innovationCovariance.inv() * innovation;
-            assert(mahDistSqrd.rows == 1 && mahDistSqrd.cols == 1);
-            float mahDist = sqrt(mahDistSqrd.at<float>(0,0));
-
-            // float mahDist = sqrt((((expectedGlobalX - measuredGlobalX) * (expectedGlobalX - measuredGlobalX)) / m_RangeVariance) + (((expectedGlobalY - measuredGlobalY) * (expectedGlobalY - measuredGlobalY)) / m_BearingVariance) );    
-            if (mahDist < bestMahDist){
-                bestMahDist = mahDist;
+            if (dist < bestDist){
+                bestDist = dist;
                 bestIdx = j;
             }
 
         }
         // Based on Chi-Square distribution thresholding values found here https://www.itl.nist.gov/div898/handbook/eda/section3/eda3674.htm
-        if (bestMahDist <= 4.6){ 
+        // if (bestMahDist <= 4.6){
+        if (bestDist <= 50.0f){
             // Found association
-            // Convert local coords to global and update
-            m_observedLandmarks[bestIdx].point.x = measuredGlobalX;
-            m_observedLandmarks[bestIdx].point.y = measuredGlobalY;
+            m_observedLandmarks[bestIdx].point.x = measuredX;
+            m_observedLandmarks[bestIdx].point.y = measuredY;
             m_observedLandmarks[bestIdx].recentlyObserved = true;
 
         }
@@ -381,8 +417,8 @@ void EkfSlam::loadLandmarks(vector<scanDot> measurements){
             newLandmark.observationCount = 0;
             newLandmark.recentlyObserved = true;
             newLandmark.status = unconfirmed;
-            newLandmark.point.x = measuredGlobalX;
-            newLandmark.point.y = measuredGlobalY;
+            newLandmark.point.x = measuredX;
+            newLandmark.point.y = measuredY;
             m_observedLandmarks.push_back(newLandmark);
 
         }
@@ -404,7 +440,7 @@ void EkfSlam::updateLandmarkStatus(){
                 m_observedLandmarks.pop_back();
             }
         }
-        else {
+        else if (m_observedLandmarks[i].recentlyObserved) {
             // Convert global coords to local
             m_observedLandmarks[i].observationCount ++;
             m_observedLandmarks[i].recentlyObserved = false;
@@ -412,10 +448,10 @@ void EkfSlam::updateLandmarkStatus(){
                 m_observedLandmarks[i].status = confirmed;
                 // TODO: Can directly push global cartesian coord and avoid reconverting later
                 scanDot goodLandmark;
-                float landmarkX = m_observedLandmarks[i].point.x;
-                float landmarkY = m_observedLandmarks[i].point.y;
-                float xDiff = landmarkX - robotX;
-                float yDiff = landmarkY - robotY;
+                float globalX = m_observedLandmarks[i].point.x;
+                float globalY = m_observedLandmarks[i].point.y;
+                float xDiff = globalX - robotX;
+                float yDiff = globalY - robotY;
                 goodLandmark.angle = atan2(yDiff, xDiff) - robotTheta;
                 goodLandmark.dist = sqrt((xDiff * xDiff) + (yDiff * yDiff));
             
