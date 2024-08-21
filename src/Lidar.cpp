@@ -57,7 +57,8 @@ int Lidar::scan(){
             scanDot dot;
             dot.dist = newNodes[i].dist_mm_q2 / 4.0f;
             float angle_deg = (newNodes[i].angle_z_q14 *90.0f) / 16384.0f;
-            dot.angle = (angle_deg * M_PI) / 180.0f;
+            // Adapted for position of Lidar on Car
+            dot.angle = -(angle_deg * M_PI) / 180.0f;
             m_nodes.push_back(dot);
         }
         return EXIT_SUCCESS;
