@@ -54,15 +54,13 @@ int EkfSlam::init(){
     identity_V = Mat::eye(2,2, CV_32F);
     associatedLandmark_z = Mat::zeros(2, 1, CV_32F);
 
-    m_associationGate = 7.0f;
+    m_associationGate = 4.6f;
     m_odometryError = 0.5f;
-    // Empirically calculated
-    // m_RangeVariance = 33.87f;
-    m_RangeVariance = 33.87f;
+    m_RangeVariance = 8.5f;
+    m_BearingVariance = 1.0f; // 1 radian
 
-    m_BearingVariance = 1.0f; // 1 radian error
-
-    m_landmarkConfirmationCount = 40;
+    m_landmarkConfirmationCount = 50;
+    m_landmarkMaxDist = 300.0f;
 
     return EXIT_SUCCESS;
 }
@@ -322,7 +320,6 @@ bool EkfSlam::associateLandmark(float expectedRange, float expectedTheta, Mat in
         innovation.at<float>(0, 0) = (bestRange - expectedRange);
         innovation.at<float>(1, 0) = (bestTheta - expectedTheta);
 
-        // Mat measurementErrorMahDist = innovation.t() * measurementNoise_R.inv() * innovation;
         Mat mahalanobisDistSqrd = innovation.t() * innovationCovariance_S.inv() * innovation;
         assert(mahalanobisDistSqrd.rows == 1 && mahalanobisDistSqrd.cols == 1);
         float mahalanobisDist = sqrt(mahalanobisDistSqrd.at<float>(0,0));
@@ -441,7 +438,7 @@ void EkfSlam::loadLandmarks(){
             }
 
         }
-        if (bestDist <= 300.0f){
+        if (bestDist <= m_landmarkMaxDist){
             // Found association
             m_observedLandmarks[bestIdx].point.x = measuredX;
             m_observedLandmarks[bestIdx].point.y = measuredY;
@@ -483,9 +480,7 @@ void EkfSlam::updateLandmarkStatus(){
             m_observedLandmarks[i].observationCount ++;
             m_observedLandmarks[i].recentlyObserved = false;
             if (m_observedLandmarks[i].observationCount >= m_landmarkConfirmationCount){ 
-                if (m_observedLandmarks[i].status == unconfirmed){
-                    m_observedLandmarks[i].status = confirmed;
-                }
+                m_observedLandmarks[i].status = confirmed;
                 // TODO: Can directly push global cartesian coord and avoid reconverting later
                 scanDot goodLandmark;
                 float globalX = m_observedLandmarks[i].point.x;

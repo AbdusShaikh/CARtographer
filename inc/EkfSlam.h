@@ -84,4 +84,5 @@ class EkfSlam {
         // Global Coord (Remade each iteration)
         vector<Point2f> m_globalizedMeasurements;
         int m_landmarkConfirmationCount;
+        float m_landmarkMaxDist;
 };
