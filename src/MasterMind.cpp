@@ -54,6 +54,14 @@ int MasterMind::uninit(){
 
 int MasterMind::run(){
     while (true){
+#if TIME_SYSTEM
+        std::ofstream outFile("TimeTaken.txt", std::ios::app);
+
+        if (!outFile) {
+            std::cerr << "Error opening file for writing." << std::endl;
+        }
+        auto start = std::chrono::high_resolution_clock::now();
+#endif
 #if !DISABLE_LIDAR
         m_lidar.main();
 #endif
@@ -76,7 +84,18 @@ int MasterMind::run(){
 #endif
 
 #if !DISABLE_CAR
-        m_car.main();
+    m_car.main();
+#endif
+    
+
+#if TIME_SYSTEM
+    // End time measurement
+    auto end = std::chrono::high_resolution_clock::now();
+
+    // Calculate the duration in milliseconds
+    std::chrono::duration<double, std::milli> duration = end - start;
+    outFile << duration.count() << std::endl;
+    outFile.close();
 #endif
     }
     return EXIT_SUCCESS;
