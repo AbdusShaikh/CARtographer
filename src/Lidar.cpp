@@ -119,18 +119,9 @@ void Lidar::main(){
 #if DUMP_LIDAR_READINGS
     dumpLidarReadings();
 #endif
-#if USE_SPLITANDMERGE
-    float distThreshold_mm = 100.0f;
-    float angleThreshold = 0.05f;
-    float minLineLength = 10;
-    vector<vector<scanDot>> extractedLines = m_LineExtractor.splitAndMerge(m_nodes, distThreshold_mm, angleThreshold, minLineLength);
-    *m_lineFeatures = extractedLines;
-#endif 
 
-#if USE_RANSAC
     m_lineExtractorRansac.init(m_nodes);
     vector<scanDot> extractedLandmarks = m_lineExtractorRansac.run();
     *m_lidarFeatureDeposit = extractedLandmarks;
-#endif
     return;
 }
