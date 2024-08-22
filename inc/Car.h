@@ -1,7 +1,7 @@
 #include <pigpio.h>
 #include <thread>
 #include "common.h"
-#define DEBUG_CAR 1
+#define DEBUG_CAR 0
 
 struct carPinConfig{
     int enA = 21;
@@ -77,7 +77,7 @@ class Car{
         carDimensions m_carDimensions;
         OdometryDataContainer *m_odometry;
         // TODO: Organize
-        float m_dutyCycle = 100.0f;
+        float m_dutyCycle = 80.0f;
         float m_leftWheelTicks = 0.0f; // Number of left wheel encoder ticks since last timestep
         float m_rightWheelTicks = 0.0f; // Number of right wheel encoder ticks since last timestep
 };

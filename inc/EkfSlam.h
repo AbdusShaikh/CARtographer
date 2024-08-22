@@ -74,8 +74,6 @@ class EkfSlam {
         OdometryDataContainer m_controlInputs;
         vector<scanDot> m_rawMeasurements;
 
-        // LandmarkManager m_landmarkManager;
-
         // Feature/Landmark Management
         // Local Coords (Remade each iteration)
         vector<scanDot> m_goodMeasurements;

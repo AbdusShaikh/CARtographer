@@ -1,5 +1,5 @@
 #include "MasterMind.h"
-//TODO: Handle shutdown properly
+//TODO: Graceful shutdown
 MasterMind::MasterMind(){};
 MasterMind::~MasterMind(){};
 
@@ -59,6 +59,7 @@ int MasterMind::run(){
 #endif
 
 #if !DISABLE_CAR
+//TODO: Organize
     int ch = getch();  // Get the input from the keyboard, non-blocking
     char command;
     if (ch != ERR) {
