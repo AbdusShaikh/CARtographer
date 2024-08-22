@@ -4,7 +4,7 @@
 #include <iostream>
 #include <string.h>
 #include <signal.h>
-#include <math.h>
+#include <cmath>
 #include <vector>
 #include <assert.h>
 
