@@ -39,7 +39,7 @@ class EkfSlam {
         void predictCovarianceMat();
         // Update step helpfer functions
         void updateMeasurementJacobian(int currLandmarkIdx, float rX, float rY, float lX, float lY, float expectedRange);
-        bool associateLandmark(float expectedRange, float expectedTheta);
+        bool associateLandmark(float expectedRange, float expectedTheta, Mat innovationCovariance);
         // Utility functions
         void displayLandmarks();
         // Feature/Landmark Management
@@ -54,7 +54,7 @@ class EkfSlam {
         Mat processNoise_Q;
         Mat measurementNoise_R;
         Mat measurementJacobian_H;
-        Mat innovationCovariance_S;
+        // Mat innovationCovariance_S;
         Mat kalmanGain_K;
         Mat identity_V;
 
@@ -83,5 +83,5 @@ class EkfSlam {
         vector<Landmark> m_observedLandmarks;
         // Global Coord (Remade each iteration)
         vector<Point2f> m_globalizedMeasurements;
-        int m_landmarkConfirmationCount = 30;
+        int m_landmarkConfirmationCount;
 };

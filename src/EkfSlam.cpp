@@ -42,7 +42,6 @@
 //              - Bottom right corner: P_ll (co-variance matrix of new landmark)
 //TODO:
 //  - SPEED UP
-//  - Re calculate variances
 
 
 EkfSlam::EkfSlam(){};
@@ -55,11 +54,15 @@ int EkfSlam::init(){
     identity_V = Mat::eye(2,2, CV_32F);
     associatedLandmark_z = Mat::zeros(2, 1, CV_32F);
 
-    m_associationGate = 15.0f;
-    m_odometryError = 0.01f;
+    m_associationGate = 7.0f;
+    m_odometryError = 0.5f;
     // Empirically calculated
+    // m_RangeVariance = 33.87f;
     m_RangeVariance = 33.87f;
-    m_BearingVariance = 1.79e-5f;
+
+    m_BearingVariance = 1.0f; // 1 radian error
+
+    m_landmarkConfirmationCount = 40;
 
     return EXIT_SUCCESS;
 }
@@ -133,13 +136,13 @@ void EkfSlam::update(){
 
         // 3.) Update measurement noise matrix R
         measurementNoise_R.at<float>(0,0) = m_RangeVariance * expectedRange;
-        measurementNoise_R.at<float>(1,1) = m_BearingVariance * expectedBearing;
+        measurementNoise_R.at<float>(1,1) = m_BearingVariance;
 
         // 4.) Compute innovation covariance S
-        innovationCovariance_S = (measurementJacobian_H * covariance_P * measurementJacobian_H.t()) + (identity_V * measurementNoise_R * identity_V.t());
+        Mat innovationCovariance_S = (measurementJacobian_H * covariance_P * measurementJacobian_H.t()) + (identity_V * measurementNoise_R * identity_V.t());
         
         // 5.) Find associated landmark
-        if (!associateLandmark(expectedRange, expectedBearing)){ // Failed to find this previously observed landmark in current reading. We want to only update reobserved landmarks
+        if (!associateLandmark(expectedRange, expectedBearing, innovationCovariance_S)){ // Failed to find this previously observed landmark in current reading. We want to only update reobserved landmarks
             continue;
         }
         // 6.) Compute Kalman Gain
@@ -185,8 +188,8 @@ void EkfSlam::addNewLandmarks(){
         invMeasurementLandmarkJacobian.at<float>(1,0) = sinGlobalTheta;
         invMeasurementLandmarkJacobian.at<float>(1,1) = landmarkR * cosGlobalTheta;
 
-        measurementNoise_R.at<float>(0,0) = m_RangeVariance * landmarkR;
-        measurementNoise_R.at<float>(1,1) = m_BearingVariance * landmarkTheta;
+        measurementNoise_R.at<float>(0,0) = m_RangeVariance;
+        measurementNoise_R.at<float>(1,1) = m_BearingVariance ;
 
         // Calculate new covariance submatrix and crossvariance vectors
         Mat newLandmarkCovariance = (invMeasurementPoseJacobian * covariance_P(Rect(0, 0, 3, 3)) * invMeasurementPoseJacobian.t()) + (invMeasurementLandmarkJacobian * measurementNoise_R * invMeasurementLandmarkJacobian.t());
@@ -300,7 +303,7 @@ void EkfSlam::updateMeasurementJacobian(int currLandmarkIdx, float rX, float rY,
 
 // TODO: Handle when a previously observed landmark is not observed this time.
 // Find the closest incoming landmark by euclidean distance and pass it through a validation gate.
-bool EkfSlam::associateLandmark(float expectedRange, float expectedTheta){
+bool EkfSlam::associateLandmark(float expectedRange, float expectedTheta, Mat innovationCovariance_S){
     float minDist = INFINITY;
     int bestIdx = -1;
     for (int i = 0; i < (int) m_goodMeasurements.size(); i++){
@@ -315,19 +318,25 @@ bool EkfSlam::associateLandmark(float expectedRange, float expectedTheta){
     if (minDist < INFINITY){
         float bestRange = m_goodMeasurements[bestIdx].dist;
         float bestTheta = m_goodMeasurements[bestIdx].angle;
-        // Mat innovation = Mat(2, 1, CV_32F);
-        // innovation.at<float>(0, 0) = (bestRange - expectedRange);
-        // innovation.at<float>(1, 0) = (bestTheta - expectedTheta);
+        Mat innovation = Mat(2, 1, CV_32F);
+        innovation.at<float>(0, 0) = (bestRange - expectedRange);
+        innovation.at<float>(1, 0) = (bestTheta - expectedTheta);
 
-        // Mat innovationDist = innovation.t() * innovationCovariance_S.inv() * innovation;
+        // Mat measurementErrorMahDist = innovation.t() * measurementNoise_R.inv() * innovation;
+        Mat mahalanobisDistSqrd = innovation.t() * innovationCovariance_S.inv() * innovation;
+        assert(mahalanobisDistSqrd.rows == 1 && mahalanobisDistSqrd.cols == 1);
+        float mahalanobisDist = sqrt(mahalanobisDistSqrd.at<float>(0,0));
         // Validation gate
-        // if (innovationDist.at<float>(0,0) <= m_associationGate){
+        if (mahalanobisDist <= m_associationGate){
             associatedLandmark_z.at<float>(0,0) = bestRange;
             associatedLandmark_z.at<float>(1,0) = bestTheta;
             swap(m_goodMeasurements[bestIdx], m_goodMeasurements.back());
             m_goodMeasurements.pop_back();
             return true;
-        // }
+        }
+        else {
+            return false;
+        }
     }
     return false;
 }
@@ -411,9 +420,6 @@ void EkfSlam::loadLandmarks(){
     // Does this landmark already exist?
     //  - If yes: increase observation count
     //  - If no: Initialize new landmark
-    // float robotX = state_x.at<float>(0,0);
-    // float robotY = state_x.at<float>(1,0);
-    // float robotTheta = state_x.at<float>(2,0);
 
     for (int i = 0; i < (int) m_globalizedMeasurements.size(); i++){
         float measuredX = m_globalizedMeasurements[i].x;
@@ -435,11 +441,8 @@ void EkfSlam::loadLandmarks(){
             }
 
         }
-        // Based on Chi-Square distribution thresholding values found here https://www.itl.nist.gov/div898/handbook/eda/section3/eda3674.htm
-        // if (bestMahDist <= 4.6){
-        if (bestDist <= 500.0f){
+        if (bestDist <= 300.0f){
             // Found association
-            // TODO: Error will accumulate
             m_observedLandmarks[bestIdx].point.x = measuredX;
             m_observedLandmarks[bestIdx].point.y = measuredY;
             m_observedLandmarks[bestIdx].recentlyObserved = true;
@@ -468,7 +471,7 @@ void EkfSlam::updateLandmarkStatus(){
 
     for (int i = 0; i < (int) m_observedLandmarks.size(); i++){
         if (!m_observedLandmarks[i].recentlyObserved && m_observedLandmarks[i].status == unconfirmed){
-            m_observedLandmarks[i].observationCount --;
+            m_observedLandmarks[i].observationCount -= 2;
             if (m_observedLandmarks[i].observationCount <= 0){
                 // Remove this landmark 
                 swap(m_observedLandmarks[i], m_observedLandmarks.back());
@@ -513,7 +516,7 @@ void EkfSlam::displayLandmarks(){
             continue;
         }
         Point p = Point(m_observedLandmarks[i].point.x, m_observedLandmarks[i].point.y);
-        circle(image, Point(center.x + (p.x / DISPLAY_SCALE) , center.y - (p.y / DISPLAY_SCALE)), 3, red, 2);
+        // circle(image, Point(center.x + (p.x / DISPLAY_SCALE) , center.y - (p.y / DISPLAY_SCALE)), 3, red, 2);
     }
 
     for (int i = 3; i < (int) state_x.rows; i += 2){
