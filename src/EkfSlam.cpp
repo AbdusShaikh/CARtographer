@@ -732,12 +732,12 @@ void EkfSlam::displayLandmarks(){
 
         float angle, majorAxis, minorAxis;
         if (ev1 > ev2){
-            angle = atan2(eigenvector1(1), eigenvector1(0));
+            angle = atan2(eigenvector1(1), eigenvector1(0)) * (180.0f / M_PI);
             majorAxis = std::sqrt(ev1);
             minorAxis = std::sqrt(ev2);
         }
         else {
-            angle = atan2(eigenvector2(1), eigenvector2(0));
+            angle = atan2(eigenvector2(1), eigenvector2(0))  * (180.0f / M_PI);
             majorAxis = std::sqrt(ev2);
             minorAxis = std::sqrt(ev1);
         }
