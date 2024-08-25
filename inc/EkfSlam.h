@@ -1,6 +1,7 @@
 #include <opencv2/core.hpp>
 #include "common.h"
-#define DISPLAY_LANDMARKS 1
+#include <eigen3/Eigen/Eigen>
+#define DISPLAY_LANDMARKS 0
 
 #if DISPLAY_LANDMARKS
     #include <opencv2/opencv.hpp>
@@ -8,7 +9,9 @@
     #include <opencv2/imgproc.hpp>
 #endif
 
+using namespace Eigen;
 using namespace cv;
+
 
 enum landmarkStatus{unconfirmed = 0, confirmed = 1};
 
@@ -26,7 +29,7 @@ class EkfSlam {
         EkfSlam();
         ~EkfSlam();
         int init();
-        Mat step(vector<scanDot> measurements, OdometryDataContainer controlInputs);
+        VectorXf step(vector<scanDot> measurements, OdometryDataContainer controlInputs);
     private:
         // Algorithm functions
         void predict();
@@ -39,7 +42,7 @@ class EkfSlam {
         void predictCovarianceMat();
         // Update step helpfer functions
         void updateMeasurementJacobian(int currLandmarkIdx, float rX, float rY, float lX, float lY, float expectedRange);
-        bool associateLandmark(float expectedRange, float expectedTheta, Mat innovationCovariance);
+        bool associateLandmark(float expectedRange, float expectedTheta, const Matrix2f innovationCovariance_S_Eigen);
         // Utility functions
         void displayLandmarks();
         // Feature/Landmark Management
@@ -48,27 +51,19 @@ class EkfSlam {
         void loadLandmarks();
         void updateLandmarkStatus();
 
-        // Matrices
-        Mat stateTransitionJacobian_A;
-        Mat covariance_P;
-        Mat processNoise_Q;
-        Mat measurementNoise_R;
-        Mat measurementJacobian_H;
-        // Mat innovationCovariance_S;
-        Mat kalmanGain_K;
-        Mat identity_V;
+        // Main Matrices
+        MatrixXf stateTransitionJacobian_A;
+        MatrixXf covariance_P;
+        Matrix3f processNoise_Q;
+        Matrix2f measurementNoise_R;
+        MatrixXf measurmentJacobian_H;
+        MatrixXf kalmanGain_K;
+        Matrix2f identity_V;
 
         // Vectors
         // State vectors (Robot pose and landmark position)
-        Mat state_x;
-        Mat associatedLandmark_z;
-
-
-        // Scalar values
-        float m_odometryError;
-        float m_RangeVariance;
-        float m_BearingVariance;
-        float m_associationGate;
+        VectorXf state_x;
+        Vector2f associatedLandmark_z;
 
         // Extermanl input
         OdometryDataContainer m_controlInputs;
@@ -81,6 +76,15 @@ class EkfSlam {
         vector<Landmark> m_observedLandmarks;
         // Global Coord (Remade each iteration)
         vector<Point2f> m_globalizedMeasurements;
+        
+        // Scalar values
+        float m_odometryError;
+        float m_RangeVariance;
+        float m_BearingVariance;
+        float m_associationGate;
+        float m_dxVariance;
+        float m_dyVariance;
+        float m_dThetaVariance;
         int m_landmarkConfirmationCount;
         float m_landmarkMaxDist;
 };
