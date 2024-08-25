@@ -69,6 +69,7 @@ int Lidar::scan(){
 #if DISPLAY_LIDAR_READINGS
 void Lidar::displayLidarData(){
     Mat image = Mat::zeros(800, 800, CV_8UC3);
+    image.setTo(cv::Scalar(DISPLAY_BACKGROUND_COLOUR)); // Make the image grey
     Point center = Point(400, 400);
     circle(image, center, 5, Scalar(0, 255,0));
     // int scaleFactor = 20;

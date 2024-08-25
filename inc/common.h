@@ -9,6 +9,7 @@
 #include <assert.h>
 
 #define DISPLAY_SCALE 10
+#define DISPLAY_BACKGROUND_COLOUR 217, 217, 219
 
 using namespace std;
 

@@ -215,10 +215,11 @@ vector<Point2f> Ransac::convertPointsToCartesian(const vector<scanDot> lidarPoin
 #if DISPLAY_EXTRACTED_LINES_RANSAC
 void Ransac::displayExtractedLines(){
     Mat image = Mat::zeros(800, 800, CV_8UC3);
+    image.setTo(cv::Scalar(DISPLAY_BACKGROUND_COLOUR)); // Make the image grey
     Point center = Point(image.rows / 2, image.cols / 2);
-    Scalar green = Scalar(0, 255, 0);
+    Scalar green = Scalar(0, 171, 20);
     Scalar red = Scalar(0,0,255);
-    circle(image, center, 5, green);
+    circle(image, center, 5, green, cv::FILLED);
 
     // int scaleFactor = 20;
     for (int i = 0; i < (int) m_extractedLines.size(); i++){
@@ -242,7 +243,7 @@ void Ransac::displayExtractedLines(){
         float y = currLandmark.dist * sin(currLandmark.angle);
 
         Point displayPoint = Point(center.x + (x / DISPLAY_SCALE), center.y - (y / DISPLAY_SCALE));
-        circle(image, displayPoint, 3, red, 2);
+        circle(image, displayPoint, 3, red, cv::FILLED);
     }
     imshow("RANSAC", image);
     waitKey(1);
