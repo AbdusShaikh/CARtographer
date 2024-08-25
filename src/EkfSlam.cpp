@@ -491,23 +491,29 @@ void EkfSlam::updateLandmarkStatus(){
 #if DISPLAY_LANDMARKS
 void EkfSlam::displayLandmarks(){
     Mat image = Mat::zeros(800, 800, CV_8UC3);
+    image.setTo(cv::Scalar(DISPLAY_BACKGROUND_COLOUR)); // Make the image grey
     cv::Point center = cv::Point(image.rows / 2, image.cols / 2);
-    cv::Scalar green = cv::Scalar(0, 255, 0);
+    cv::Scalar green = cv::Scalar(20, 171, 0);
     cv::Scalar red = cv::Scalar(0,0,255);
     cv::Scalar blue = cv::Scalar(255,0,0);
-    circle(image, center, 5, green);
+    // cv::circle(image, center, 8, green, cv::FILLED); // Origin
+    cv::drawMarker(image, center, green, cv::MARKER_TILTED_CROSS, 20, 2); // Origin
+    cv::Scalar pointColour;
 
-    // int scaleFactor = 20;
-    // for (int i = 0; i < (int) m_observedLandmarks.size(); i++){
-    //     if (m_observedLandmarks[i].status != confirmed){
-    //         continue;
-    //     }
-    //     Point p = Point(m_observedLandmarks[i].point.x, m_observedLandmarks[i].point.y);
-    //     circle(image, Point(center.x + (p.x / DISPLAY_SCALE) , center.y - (p.y / DISPLAY_SCALE)), 3, red, 2);
-    // }
+    int i = 0;
 
-    for (int i = 3; i < (int) state_x.rows(); i += 2){
-        
+    while (i < (int) state_x.rows()){
+        int increment = 0;
+        if (i == 0){
+            // Skip the theta value of the robot and begin plotting the landmarks
+            increment = 3;
+            pointColour = blue;
+        }
+        else {
+            increment = 2;
+            pointColour = green;
+        }
+
         Point p = Point(state_x(i,0), state_x(i + 1,0));
         Matrix2f covSubmatrix = covariance_P.block(i, i, 2, 2);
         EigenSolver<MatrixXf> eigenSolver(covSubmatrix);
@@ -530,16 +536,17 @@ void EkfSlam::displayLandmarks(){
             majorAxis = std::sqrt(ev2);
             minorAxis = std::sqrt(ev1);
         }
-
         // Draw the ellipse
-        cv::ellipse(image, Point(center.x + (p.x / DISPLAY_SCALE) , center.y - (p.y / DISPLAY_SCALE)), cv::Size(majorAxis, minorAxis), angle, 0, 360, green, 2);
+        cv::ellipse(image, Point(center.x + (p.x / DISPLAY_SCALE) , center.y - (p.y / DISPLAY_SCALE)), cv::Size(majorAxis, minorAxis), angle, 0, 360, red, 2);
 
-
-        circle(image, Point(center.x + (p.x / DISPLAY_SCALE) , center.y - (p.y / DISPLAY_SCALE)), 2, red, 2);
+        // Draw the location of the landmark/robot
+        cv::circle(image, Point(center.x + (p.x / DISPLAY_SCALE) , center.y - (p.y / DISPLAY_SCALE)), 5, pointColour, cv::FILLED);
+        
+        i += increment;
     }
 
-    imshow("Observed Landmarks", image);
-    waitKey(1);
+    cv::imshow("Observed Landmarks", image);
+    cv::waitKey(1);
     return;
 }
 #endif
