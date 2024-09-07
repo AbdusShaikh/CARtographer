@@ -1,7 +1,4 @@
 #include "Car.h"
-// TODO:
-//  - Synchronize accecss to m_leftWheelTicks and m_rightWheelTicks
-
 
 Car::Car(){};
 
@@ -18,10 +15,6 @@ void Car::test(){
 
     gpioPWM(m_pinConfig.enA, m_dutyCycle);
     gpioPWM(m_pinConfig.enB, m_dutyCycle);
-    // while(!ctrlCFlag){
-    //     gpioWrite(m_inLeftWheelPin, 1);
-    //     gpioWrite(m_rightWheelPin, 1);
-    // }
     gpioWrite(m_pinConfig.lFWheel, 0);
     gpioWrite(m_pinConfig.rFWheel, 0);
     gpioTerminate();
@@ -72,14 +65,6 @@ int Car::drive(int speed, float ang){
     (void) speed; // REMOVE
     gpioWrite(m_pinConfig.lFWheel, 1);
     gpioWrite(m_pinConfig.rFWheel, 1);
-    // if (!m_interface->isClear){
-    //     gpioWrite(m_LFWheelPin, 0);
-    //     gpioWrite(m_RFWheelPin, 1);
-    // }
-    // else {
-    //     gpioWrite(m_LFWheelPin, 1);
-    //     gpioWrite(m_RFWheelPin, 1);
-    // }
     return EXIT_SUCCESS;
 }
 
@@ -126,13 +111,18 @@ void Car::remoteDrive(char command){
 // Vehicle odometry calculations based on slide 13 from this presentation
 // https://courses.edx.org/asset-v1:ETHx+AMRx+2T2020+type@asset+block/AMR_Chli_SLAM_aSLAMproblem.pdf
 void Car::computeOdometry(){
-    int lTicks = m_leftWheelTicks;
-    m_leftWheelTicks = 0;
-    int rTicks = m_rightWheelTicks;
-    m_rightWheelTicks = 0;
+    int lTicksCurr = m_leftWheelTicks;
+    int rTicksCurr = m_rightWheelTicks;
 
-    float lWheelDistTravelled_mm = (lTicks / m_carDimensions.encoderSlots) * m_carDimensions.wheelCircumference;
-    float rWheelDistTravelled_mm = (rTicks / m_carDimensions.encoderSlots) * m_carDimensions.wheelCircumference;
+    int lTickDiff = m_leftWheelTicks - m_leftWheelTicksPrev;
+    int tTickDiff = m_rightWheelTicks - m_rightWheelTicksPrev;
+
+    m_leftWheelTicksPrev = lTicksCurr;
+    m_rightWheelTicksPrev = rTicksCurr;
+
+
+    float lWheelDistTravelled_mm = (lTickDiff / m_carDimensions.encoderSlots) * m_carDimensions.wheelCircumference;
+    float rWheelDistTravelled_mm = (tTickDiff / m_carDimensions.encoderSlots) * m_carDimensions.wheelCircumference;
 
     m_odometry->carWheelBase = m_carDimensions.wheelBase_mm;
     m_odometry->leftWheelDist = lWheelDistTravelled_mm;

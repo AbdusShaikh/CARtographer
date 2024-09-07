@@ -54,6 +54,8 @@ int MasterMind::uninit(){
 
 int MasterMind::run(){
     while (true){
+    int ch = getch();  // Get the input from the keyboard, non-blocking
+    char command = ch;
 #if TIME_SYSTEM
         std::ofstream outFile("TimeTaken.txt", std::ios::app);
 
@@ -63,24 +65,16 @@ int MasterMind::run(){
         auto start = std::chrono::high_resolution_clock::now();
 #endif
 #if !DISABLE_LIDAR
-        m_lidar.main();
+    int lidarScanResult = m_lidar.main();
 #endif
 
 #if !DISABLE_CAR
-//TODO: Organize
-    int ch = getch();  // Get the input from the keyboard, non-blocking
-    char command;
-    if (ch != ERR) {
-        command = ch;
-    } else {
-        command = ' ';  // Use default command if no input
-    }
     m_car.remoteDrive(command);
     m_car.computeOdometry();
 #endif
 
 #if !DISABLE_SLAM
-    slamAlgo.step(m_observations.lidarExtractedLandmarks, m_observations.odometry);
+    slamAlgo.step(m_observations.lidarExtractedLandmarks, m_observations.odometry, lidarScanResult);
 #endif
 
 #if !DISABLE_CAR

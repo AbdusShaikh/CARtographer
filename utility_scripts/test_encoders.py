@@ -4,7 +4,8 @@ from time import sleep
 # Define the encoder pin
 encoder_pinA = 14  # Replace with the pin number you are using
 encoder_pinB = 15  # Replace with the pin number you are using
-
+# encoder_pinA = 18  # Replace with the pin number you are using
+# encoder_pinB = 23  # Replace with the pin number you are using
 
 pulses_per_rev = 12 # Specified by manufacturer
 

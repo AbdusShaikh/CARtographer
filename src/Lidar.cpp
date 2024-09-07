@@ -49,11 +49,12 @@ int Lidar::scan(){
     m_nodes.clear();
     size_t nodeCount = 8192;
     sl_lidar_response_measurement_node_hq_t newNodes[nodeCount];
-
-    if (SL_IS_OK(m_driver->grabScanDataHq(newNodes, nodeCount))){
-        m_driver->ascendScanData(newNodes, nodeCount);
+    
+    // Grab scan data from Lidar (Non-blocking operation)
+    if (SL_IS_OK(m_driver->grabScanDataHq(newNodes, nodeCount, 0))){
         for (int i = 0; i < (int)nodeCount; i++){
-            if (!newNodes[i].dist_mm_q2) continue;
+            if (!newNodes[i].dist_mm_q2 || newNodes[i].dist_mm_q2 >= 3500) continue;
+
             scanDot dot;
             dot.dist = newNodes[i].dist_mm_q2 / 4.0f;
             float angle_deg = (newNodes[i].angle_z_q14 *90.0f) / 16384.0f;
@@ -61,6 +62,7 @@ int Lidar::scan(){
             dot.angle = -(angle_deg * M_PI) / 180.0f;
             m_nodes.push_back(dot);
         }
+        std::sort(m_nodes.begin(), m_nodes.end(), [](const scanDot& a, const scanDot& b) {return a.angle < b.angle;});
         return EXIT_SUCCESS;
     }
     return EXIT_FAILURE;
@@ -71,7 +73,7 @@ void Lidar::displayLidarData(){
     Mat image = Mat::zeros(800, 800, CV_8UC3);
     image.setTo(cv::Scalar(DISPLAY_BACKGROUND_COLOUR)); // Make the image grey
     Point center = Point(400, 400);
-    circle(image, center, 5, Scalar(0, 255,0));
+    circle(image, center, 5, Scalar(0, 255,0), cv::FILLED);
     // int scaleFactor = 20;
     for (int i = 0; i < (int) m_nodes.size(); i++){
         scanDot currNode = m_nodes[i];
@@ -108,21 +110,19 @@ void Lidar::dumpLidarReadings(){
 }
 #endif
 
-void Lidar::main(){
-    if (scan() == EXIT_FAILURE){
-        printf("[RPLIDAR]: Failure to scan in main loop. Exiting\n");
-        return;
-    }
+int Lidar::main(){
+    int scanResult = scan();
+    if (scanResult == EXIT_SUCCESS){
     assert(m_nodes.size() > 0);
-#if DISPLAY_LIDAR_READINGS
-    displayLidarData();
-#endif
-#if DUMP_LIDAR_READINGS
-    dumpLidarReadings();
-#endif
-
-    m_lineExtractorRansac.init(m_nodes);
-    vector<scanDot> extractedLandmarks = m_lineExtractorRansac.run();
-    *m_lidarFeatureDeposit = extractedLandmarks;
-    return;
+    #if DISPLAY_LIDAR_READINGS
+        displayLidarData();
+    #endif
+    #if DUMP_LIDAR_READINGS
+        dumpLidarReadings();
+    #endif
+        m_lineExtractorRansac.init(m_nodes);
+        vector<scanDot> extractedLandmarks = m_lineExtractorRansac.run();
+        *m_lidarFeatureDeposit = extractedLandmarks;
+    }
+    return scanResult;
 }

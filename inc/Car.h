@@ -76,8 +76,11 @@ class Car{
         carPinConfig m_pinConfig;
         carDimensions m_carDimensions;
         OdometryDataContainer *m_odometry;
-        // TODO: Organize
         float m_dutyCycle = 80.0f;
         float m_leftWheelTicks = 0.0f; // Number of left wheel encoder ticks since last timestep
+        float m_leftWheelTicksPrev = 0.0f; // Previous Number of left wheel encoder ticks 
+        
         float m_rightWheelTicks = 0.0f; // Number of right wheel encoder ticks since last timestep
+        float m_rightWheelTicksPrev = 0.0f; // Previous Number of right wheel encoder ticks
+
 };

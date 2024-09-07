@@ -4,8 +4,8 @@
 #include "Ransac.h"
 
 
-#define DISPLAY_LIDAR_READINGS 1
-#define DUMP_LIDAR_READINGS 1
+#define DISPLAY_LIDAR_READINGS 0
+#define DUMP_LIDAR_READINGS 0
 
 
 #if DISPLAY_LIDAR_READINGS
@@ -27,7 +27,7 @@ class Lidar{
         Lidar();
         ~Lidar();
         int init(vector<scanDot> *lidarFeatureDeposit);
-        void main();
+        int main();
         int uninit();
 
     private:

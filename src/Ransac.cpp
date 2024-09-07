@@ -1,6 +1,4 @@
 #include "Ransac.h"
-//TODO:
-// Line detection straight ahead of the lidar suffers because points greater than 0 rad and less than 0 rad are considered too different
 
 Ransac::Ransac(){};
 Ransac::~Ransac(){};
@@ -10,11 +8,12 @@ Ransac::~Ransac(){};
 // ------------------------
 
 void Ransac::init(const vector<scanDot> lidarPoints){
-    maxAttempts = 500;  
+    maxAttempts = 250;  
     initialSampleCount = 30;
     maxDistToLine = 7.0f; // mm
     minLinePointCount = 75.0f;
     landmarkMergeThreshold = 35.0f;
+
 
     m_unassociatedPoints.clear();
     m_associatedPoints.clear();
@@ -102,7 +101,7 @@ Line Ransac::fitLine(const vector<Point2f> samplePoints, int startIdx, int endId
 //          - This is a good line. Update global associatedPoints and unassociatedPoints.
 //          - Fit a new line through these points and add to m_extractedLine.
 //      - If no: This is a bad line. Do not update anything and move on
-void Ransac::testLine(Line line){
+void Ransac::testLine(const Line line){
     vector<Point2f> localAssociatedPoints;
     vector<Point2f> localUnassociatedPoints;
     
@@ -144,39 +143,23 @@ void Ransac::extractLandmarks(){
 // Some lines are close enough together to be considered the same line. Merge the resulting landmarks based on distance rather than merging the lines
 void Ransac::mergeLandmarks(){
     vector<vector<scanDot>> similarLandmarks;
+    vector<scanDot> mergedLandmarks;
     // Group all landmarks that are within at most (maxDist * 2) mm of eachother (distance is only checked from first point)
-    for (int i = 0; i < (int) m_extractedLandmarks.size(); i ++){
-        scanDot currLandmark = m_extractedLandmarks[i];
-        bool foundSimilar = false;
-        for (int j = 0; j < (int) similarLandmarks.size(); j ++){
-            scanDot currMerged = similarLandmarks[j][0];
-            float dist = sqrt((currLandmark.dist * currLandmark.dist) + (currMerged.dist * currMerged.dist) - (2.0f * currLandmark.dist * currMerged.dist * cos(currMerged.angle - currLandmark.angle)));
-            if (dist < landmarkMergeThreshold){
-                similarLandmarks[j].push_back(currLandmark);
-                foundSimilar = true;
-                break;
+    std::sort(m_extractedLandmarks.begin(), m_extractedLandmarks.end(), [](const scanDot& a, const scanDot& b) {return a.dist < b.dist;});
+    int i = 0;
+    while (i < (int) m_extractedLandmarks.size()){
+        scanDot currPoint = m_extractedLandmarks[i];
+        if (i == (int) m_extractedLandmarks.size() - 1){
+            mergedLandmarks.push_back(currPoint);
+        }
+        else {
+            scanDot nextPoint = m_extractedLandmarks[i + 1];
+            float dist = sqrt((currPoint.dist * currPoint.dist) + (nextPoint.dist * nextPoint.dist) - (2.0f * currPoint.dist * nextPoint.dist * cos(currPoint.angle - nextPoint.angle)));
+            if (dist > landmarkMergeThreshold){
+                mergedLandmarks.push_back(currPoint);
             }
         }
-        if (!foundSimilar){
-            similarLandmarks.push_back({currLandmark});
-        };
-    }
-    vector<scanDot> mergedLandmarks;
-    for (int i = 0; i < (int) similarLandmarks.size(); i ++){
-        // Convert grouped points to cartesian to find the center
-        vector<Point2f> cartesians = convertPointsToCartesian(similarLandmarks[i]);
-        float meanX = 0, meanY = 0;
-        for (int j = 0; j < (int) cartesians.size(); j++){
-            meanX += cartesians[j].x;
-            meanY += cartesians[j].y;
-        }
-        meanX /= cartesians.size();
-        meanY /= cartesians.size();
-        // Convert center point to radian and add to list
-        scanDot mergedLangmark;
-        mergedLangmark.angle = atan2(meanY, meanX);
-        mergedLangmark.dist = sqrt((meanX * meanX) + (meanY * meanY));
-        mergedLandmarks.push_back(mergedLangmark);
+        i++;
     }
 #if DEBUG_RANSAC
     int landmarksBefore = m_extractedLandmarks.size();
@@ -193,7 +176,7 @@ void Ransac::mergeLandmarks(){
 // -----------------
 
 // Distance from a point to a line in cartesian coordinates
-float Ransac::distPointToLine(Point2f point, Line line){
+float Ransac::distPointToLine(const Point2f point, const Line line){
     float numerator = fabs((line.a * point.x) + (line.b * point.y) + line.c);
     float denominator = sqrt((line.a * line.a) + (line.b * line.b));
     float dist = numerator / denominator;
