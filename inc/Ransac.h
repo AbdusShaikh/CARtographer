@@ -1,7 +1,7 @@
 #include "common.h"
 #include <random>
 #include <opencv2/core/types.hpp>
-#define DISPLAY_EXTRACTED_LINES_RANSAC 1
+#define DISPLAY_EXTRACTED_LINES_RANSAC 0
 #define DEBUG_RANSAC 0
 
 #if DISPLAY_EXTRACTED_LINES_RANSAC
@@ -27,13 +27,13 @@ class Ransac{
     private:
         // Algorithm hlper functions
         Line fitLine(const vector<Point2f> samplePoints, int startIdx, int endIdx);
-        void testLine(Line line);
+        void testLine(const Line line);
         void extractLandmarks();
         void mergeLandmarks();
         // Utility Functions
         vector<Point2f> convertPointsToCartesian(const vector<scanDot> lidarPoints);
-        float distPointToLine(Point2f point, Line line);
-        float distPointToPoint(Point2f p1, Point2f p2);
+        float distPointToLine(const Point2f point, const Line line);
+        float distPointToPoint(const Point2f p1, const Point2f p2);
 #if DISPLAY_EXTRACTED_LINES_RANSAC
         void displayExtractedLines();
 #endif
@@ -50,4 +50,5 @@ class Ransac{
         float maxDistToLine;
         float minLinePointCount;
         float landmarkMergeThreshold;
+
 };

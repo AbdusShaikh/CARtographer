@@ -45,10 +45,6 @@
 //              - Right column: P_lx^T (cross variance but in column form)
 //              - Bottom right corner: P_ll (co-variance matrix of new landmark)
 
-//TODO:
-//  - SPEED UP
-//  - measurementNoise_R is different in addNewLandmark and update step
-
 EkfSlam::EkfSlam(){};
 EkfSlam::~EkfSlam(){};
 
@@ -60,7 +56,7 @@ int EkfSlam::init(){
     associatedLandmark_z.setZero();
     stateTransitionJacobian_A = Matrix3f().setIdentity();
 
-    m_associationGate = 4.6f; // Based off Chi-Square distribution
+    m_associationGate = 7.0f; // Based off Chi-Square distribution
     m_RangeVariance = 8.5f;
     m_BearingVariance = 1.0f; // 1 radian
 
@@ -70,7 +66,7 @@ int EkfSlam::init(){
     m_dThetaVariance = 0.02;
 
     m_landmarkConfirmationCount = 50;
-    m_landmarkMaxDist = 300.0f;
+    m_landmarkMaxDist = 400.0f;
 
     return EXIT_SUCCESS;
 }
@@ -80,12 +76,14 @@ int EkfSlam::init(){
 // ------------------------
 
 // "Main" function of Kalman Filter. Executes predict and update steps
-VectorXf EkfSlam::step(vector<scanDot> measurements, OdometryDataContainer controlInputs){
+VectorXf EkfSlam::step(const vector<scanDot> measurements, const OdometryDataContainer controlInputs, int lidarScanResult){
     m_controlInputs = controlInputs;
     m_rawMeasurements = measurements;
     predict();
-    update();
-    addNewLandmarks();
+    if (lidarScanResult == EXIT_SUCCESS){
+        update();
+        addNewLandmarks();
+    }
 #if DISPLAY_LANDMARKS
     displayLandmarks();
 #endif
@@ -187,7 +185,6 @@ void EkfSlam::addNewLandmarks(){
 
         // Compute Jacobians
         // Jacobian matrix of the inverted measurement model with respect to the robot x, y
-        // TODO: No need to remake the whole matrix each time
         MatrixXf invMeasurementPoseJacobian = MatrixXf(2, 3).setIdentity();
         invMeasurementPoseJacobian(0, 2) = -landmarkR * sinGlobalTheta;
         invMeasurementPoseJacobian(1, 2) = landmarkR * cosGlobalTheta;
@@ -199,7 +196,7 @@ void EkfSlam::addNewLandmarks(){
         invMeasurementLandmarkJacobian(1, 0) = sinGlobalTheta;
         invMeasurementLandmarkJacobian(1, 1) = landmarkR * cosGlobalTheta;
 
-        measurementNoise_R(0, 0) = m_RangeVariance;
+        measurementNoise_R(0, 0) = m_RangeVariance * landmarkR;
         measurementNoise_R(1, 1) = m_BearingVariance;
 
         // Calculate new covariance submatrix and crossvariance vectors
@@ -240,7 +237,6 @@ void EkfSlam::predictStateVec(float predictedX, float predictedY, float predicte
 
 }
 
-//TODO: Find proper noise measurements
 void EkfSlam::updateProcessNoise(float dx_mm, float dy_mm, float dTheta){
     Vector3f W =  Vector3f().setZero();
     W(0,0) = dx_mm;
@@ -302,7 +298,6 @@ void EkfSlam::updateMeasurementJacobian(int currLandmarkIdx, float rX, float rY,
 
 }
 
-// TODO: Handle when a previously observed landmark is not observed this time.
 // Find the closest incoming landmark by euclidean distance and pass it through a validation gate.
 bool EkfSlam::associateLandmark(float expectedRange, float expectedTheta, const Matrix2f innovationCovariance_S){
     float minDist = INFINITY;
@@ -348,7 +343,7 @@ bool EkfSlam::associateLandmark(float expectedRange, float expectedTheta, const 
 // In order to effectively predict and track a wall, we must convert the point on wall W that is closest to the robot, to the point that is closest to the origin on the same wall W
 // This point will be relatively consisten throughout robot motion, and thus enable effective data association, and in turn localization and mapping
 
-void EkfSlam::manageLandmarks(vector<scanDot> measurements){
+void EkfSlam::manageLandmarks(const vector<scanDot> measurements){
     // Extract line out of points
     // Find closest point on that line to global origin
     globalizeLandmarks(measurements);
@@ -358,7 +353,7 @@ void EkfSlam::manageLandmarks(vector<scanDot> measurements){
 
 // Measurements comes in as the point closest from a wall to the robot.
 // Find the point closest from this line to the origin
-void EkfSlam::globalizeLandmarks(vector<scanDot> measurements){
+void EkfSlam::globalizeLandmarks(const vector<scanDot> measurements){
     m_globalizedMeasurements.clear();
     float robotX = state_x(0,0);
     float robotY = state_x(1,0);
@@ -407,11 +402,10 @@ void EkfSlam::globalizeLandmarks(vector<scanDot> measurements){
 }
 
 // Update observed landmarks database by updating re-observed landmarks and creating newly observed landmarks
+// Does this landmark already exist?
+//  - If yes: increase observation count
+//  - If no: Initialize new landmark
 void EkfSlam::loadLandmarks(){
-    // Does this landmark already exist?
-    //  - If yes: increase observation count
-    //  - If no: Initialize new landmark
-
     for (int i = 0; i < (int) m_globalizedMeasurements.size(); i++){
         float measuredX = m_globalizedMeasurements[i].x;
         float measuredY = m_globalizedMeasurements[i].y;

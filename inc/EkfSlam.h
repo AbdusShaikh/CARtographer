@@ -29,7 +29,7 @@ class EkfSlam {
         EkfSlam();
         ~EkfSlam();
         int init();
-        VectorXf step(vector<scanDot> measurements, OdometryDataContainer controlInputs);
+        VectorXf step(const vector<scanDot> measurements, const OdometryDataContainer controlInputs, int lidarScanResult);
     private:
         // Algorithm functions
         void predict();
@@ -46,8 +46,8 @@ class EkfSlam {
         // Utility functions
         void displayLandmarks();
         // Feature/Landmark Management
-        void manageLandmarks(vector<scanDot> measurements);
-        void globalizeLandmarks(vector<scanDot> measurements);
+        void manageLandmarks(const vector<scanDot> measurements);
+        void globalizeLandmarks(const vector<scanDot> measurements);
         void loadLandmarks();
         void updateLandmarkStatus();
 

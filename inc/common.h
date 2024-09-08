@@ -23,7 +23,6 @@ struct OdometryDataContainer {
     float leftWheelDist = 0.0f; // mm
     float rightWheelDist = 0.0f; // mm
     float carWheelBase = 0.0f; // mm
-    // TODO:
     // --- May not need these ---
     float dx = 0.0f; // mm
     float dy = 0.0f; // mm
